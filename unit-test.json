@@ -1,0 +1,29 @@
+
+{
+	"comments" : "This is the configuration file for unit-test.sh",
+	"version" : 1.0,
+	"tests" : [
+		{
+			"notes" : "normal successful execution",
+			"cmd" : "./script-under-test.sh this is a test",
+			"result" : 0
+		},
+		{
+			"notes" : "execution with Warning ",
+			"cmd" : "./script-under-test.sh 1 this test exits with a warning",
+			"result" : 1
+		},
+		{
+			"notes" : "execution with Error ",
+			"cmd" : "./script-under-test.sh 2 this test exits with an error",
+			"result" : 2
+		},
+		{
+			"notes" : "This script name has a typo",
+			"cmd" : "./script-under-te5t.sh 2 this test exits with an error",
+			"result" : 2
+		}
+	]
+}
+
+

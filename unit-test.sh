@@ -12,31 +12,54 @@ debug=${debug:-0}
 useTimeStamps=${useTimeStamps:-0}
 timeStamp=$(date +%Y-%m-%d_%H-%M-%S)
 
+# set nocolor should you want a log file without the escape codes
+useColor=${useColor:-1}
+
 printError () {
 	declare msg="$@"
-	colorPrint fg=red bg=lightGray msg="$msg"
+	if [[ $useColor -ne 0 ]]; then
+		colorPrint fg=red bg=lightGray msg="$msg"
+	else
+		echo "$msg"
+	fi
 }
 
 printErrorRpt () {
 	declare msg="$@"
-	colorPrint fg=black bg=yellow msg="$msg"
+	if [[ $useColor -ne 0 ]]; then
+		colorPrint fg=black bg=yellow msg="$msg"
+	else
+		echo "$msg"
+	fi
 }
 
 printTestError () {
 	declare msg="$@"
-	colorPrint fg=white bg=red msg="$msg"
+	if [[ $useColor -ne 0 ]]; then
+		colorPrint fg=white bg=red msg="$msg"
+	else
+		echo "$msg"
+	fi
 }
 
 printOK () {
 	declare msg="$@"
-	colorPrint fg=black bg=lightGreen msg="$msg"
+	if [[ $useColor -ne 0 ]]; then
+		colorPrint fg=black bg=lightGreen msg="$msg"
+	else
+		echo "$msg"
+	fi
 }
 
 printDebug () {
 	declare msg="$@"
 
 	if [[ $debug -ge 0 ]]; then
-		colorPrint fg=lightYellow bg=blue msg="$msg"
+		if [[ $useColor -ne 0 ]]; then
+			colorPrint fg=lightYellow bg=blue msg="$msg"
+		else
+			echo "$msg"
+		fi
 	fi
 }
 
@@ -239,7 +262,11 @@ if [[ $FAIL_COUNT -gt 0 ]]; then
 	failedCount=${#failedCMD[@]}
 
 	echo
-	colorPrint fg=white bg=red msg="$failedCount tests have failed"
+	if [[ $useColor -ne 0 ]]; then
+		colorPrint fg=white bg=red msg="$failedCount tests have failed"
+	else
+		echo "$failedCount tests have failed"
+	fi
 	echo
 
 	# decrement for zero based

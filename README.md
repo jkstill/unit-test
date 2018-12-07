@@ -131,18 +131,16 @@ Environment variables
  * useTimeStamps: setting to 1 causes logs to have a timestamp as part of the log file name
  *         debug: setting to 1 will include debugging output
  *  unitTestJson: set this to the name of your JSON configuration file
+ *      useColor: set this to 0 (zero) if you do not want colors
 
+The timestamped logs are useful for comparing runs.
+
+Setting useColor=0 is useful when you need a logfile that does not have color escape codes in it.
 
 # Dependencies
 
 This script has a dependency on the script _ansi-color.sh_, which  should be in the same directory as _unit-test.sh_.
 
 _ansi-color.sh is found at [ansi-color](https://github.com/jkstill/ansi-colors)
-
-
-
-
-
-
 
 

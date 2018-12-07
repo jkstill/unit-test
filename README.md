@@ -124,13 +124,13 @@ To summarize usage of _unit-test.sh_:
 
 Switches:
 
- -n dry run mode
+ * -n dry run mode
 
 Environment variables
 
- useTimeStamps: setting to 1 causes logs to have a timestamp as part of the log file name
-         debug: setting to 1 will include debugging output
-  unitTestJson: set this to the name of your JSON configuration file
+ * useTimeStamps: setting to 1 causes logs to have a timestamp as part of the log file name
+ *         debug: setting to 1 will include debugging output
+ *  unitTestJson: set this to the name of your JSON configuration file
 
 
 # Dependencies

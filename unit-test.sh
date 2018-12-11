@@ -12,7 +12,7 @@ debug=${debug:-0}
 useTimeStamps=${useTimeStamps:-0}
 timeStamp=$(date +%Y-%m-%d_%H-%M-%S)
 
-# set nocolor should you want a log file without the escape codes
+# set useColor=0 should you want a log file without the escape codes
 useColor=${useColor:-1}
 
 printError () {

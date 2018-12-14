@@ -132,6 +132,7 @@ Environment variables
  *         debug: setting to 1 will include debugging output
  *  unitTestJson: set this to the name of your JSON configuration file
  *      useColor: set this to 0 (zero) if you do not want colors
+ *     usePython: force the use of python to parse JSON - jq normally used if available
 
 The timestamped logs are useful for comparing runs.
 

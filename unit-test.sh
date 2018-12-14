@@ -7,6 +7,87 @@ set -u
 source ./ansi-color.sh
 
 debug=${debug:-0}
+declare internalDebug
+
+: << 'COMMENT'
+
+internalDebug: reverse value of debug
+
+variables are set at the command line to disable or enable a feature
+
+show debug output
+
+debug=1
+
+disable debug output
+
+debug=0
+
+shell return values are the opposite
+
+0 = true
+!0 = false
+
+COMMENT
+
+if [[ $debug -eq 0 ]]; then
+	internalDebug=1
+else
+	internalDebug=0
+fi
+
+isDebugEnabled () {
+	return $internalDebug
+}
+
+printDebug () {
+	declare msg="$@"
+
+	if $(isDebugEnabled); then
+		if [[ $useColor -ne 0 ]]; then
+			colorPrint fg=lightYellow bg=blue msg="$msg"
+		else
+			echo "$msg"
+		fi
+	fi
+}
+
+
+##############################################
+# use jq to parse JSON if it is available
+##############################################
+
+declare usePython=${usePython:-1}
+
+jqBin=$(which jq)
+pythonBin=$(which python)
+
+declare jqVersion=$($jqBin --version 2>/dev/null)
+declare useJQ=1
+#echo jqVersion: "|$jqVersion|"
+
+if [[ -n $jqVersion ]]; then
+	useJQ=0
+fi
+
+printDebug "useJQ: $useJQ"
+
+forcePython () {
+	if [[ $usePython -eq 0 ]]; then
+		return 1; # false
+	else
+		return 0; # true
+	fi
+}
+
+isJQEnabled () {
+	if $(forcePython); then
+		return 1; # false
+	else
+		return $useJQ
+	fi
+}
+
 
 # enable for timestamped log files
 useTimeStamps=${useTimeStamps:-0}
@@ -51,23 +132,11 @@ printOK () {
 	fi
 }
 
-printDebug () {
-	declare msg="$@"
-
-	if [[ $debug -ge 0 ]]; then
-		if [[ $useColor -ne 0 ]]; then
-			colorPrint fg=lightYellow bg=blue msg="$msg"
-		else
-			echo "$msg"
-		fi
-	fi
-}
-
 unitTestJson=${unitTestJson:-'unit-test.json'}
 logFile=$(echo $unitTestJson | cut -f1 -d\.)
 [[ $useTimeStamps -gt 0 ]] && logFile=${logFile}_${timeStamp}.log || logFile=${logFile}.log
 
-if [[ $debug -gt 0 ]]; then
+if $(isDebugEnabled); then
 	echo "Log File: $logFile"
 	echo "Unit Test: $unitTestJson"
 	#exit
@@ -82,7 +151,23 @@ fi
 }
 
 # test the JSON file to be at least syntactically correct
-python -c "import sys, json; print 'version:', (json.load(sys.stdin)['version'])" < $unitTestJson >/dev/null 2>/dev/null
+if $(isJQEnabled); then
+	printDebug "parsing JSON with JQ"
+	[[ -x $jqBin ]] || {
+		echo
+		printf "\n!! executable for jq is not available !!\n\n"
+		exit 1
+	}
+	$jqBin . $unitTestJson >/dev/null 2>/dev/null
+else
+	printDebug "parsing JSON with Python"
+	[[ -x $pythonBin ]] || {
+		echo
+		printf "\n!! executable for python is not available !!\n\n"
+		exit 1
+	}
+	$pythonBin -c "import sys, json; print 'version:', (json.load(sys.stdin)['version'])" < $unitTestJson >/dev/null 2>/dev/null
+fi
 rc=$?
 
 [[ $rc -ne 0 ]] && {
@@ -204,13 +289,34 @@ printDebug "lineCount: $lineCount"
 # this one liner is a little clumsy, but easy to use
 # pull requests for improvement here are welcome
 
-for i in $( seq 0 $lineCount)
-do
-	#python -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['notes'])" < unit-test.jso
-	cmds[$i]=$(python -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['cmd'])" < $unitTestJson)
-	cmdMessages[$i]=$(python -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['notes'])" < $unitTestJson)
-	expectedRC[$i]=$(python -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['result'])" < $unitTestJson)
-done
+if $(isJQEnabled); then
+
+	# separated with ^ to avoid possible issues with commas in data
+	declare i=0
+
+	# using this method of reading input stores entire line in the 'line' variable
+	# the from of 'for line in $(do something)' causes IFS to store only the first space-separated word
+	while read line
+	do
+
+		# printDebug "line: $line"
+		cmdMessages[$i]=$(echo $line | cut -f1 -d^)
+		cmds[$i]=$(echo $line | cut -f2 -d^)
+		expectedRC[$i]=$(echo $line | cut -f3 -d^)
+
+		(( i ++ ))
+	done < <( $jqBin -r '.tests[] | [.notes, .cmd, .result] | @csv' $unitTestJson | sed -e 's/"//g'  |  perl -ne ' my @a=split(/,/); print join(qq{^},@a)' )
+
+else
+
+	for i in $( seq 0 $lineCount)
+	do
+		#python -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['notes'])" < unit-test.jso
+		cmds[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['cmd'])" < $unitTestJson)
+		cmdMessages[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['notes'])" < $unitTestJson)
+		expectedRC[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['result'])" < $unitTestJson)
+	done
+fi
 
 
 # this cannot be set until previous loop completes

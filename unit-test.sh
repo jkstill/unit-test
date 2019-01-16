@@ -30,6 +30,9 @@ shell return values are the opposite
 
 COMMENT
 
+# set useColor=0 should you want a log file without the escape codes
+useColor=${useColor:-1}
+
 if [[ $debug -eq 0 ]]; then
 	internalDebug=1
 else
@@ -92,9 +95,6 @@ isJQEnabled () {
 # enable for timestamped log files
 useTimeStamps=${useTimeStamps:-0}
 timeStamp=$(date +%Y-%m-%d_%H-%M-%S)
-
-# set useColor=0 should you want a log file without the escape codes
-useColor=${useColor:-1}
 
 printError () {
 	declare msg="$@"
@@ -209,7 +209,14 @@ run () {
 	echo "CMD: $cmd"
 	if $(isExeEnabled); then
 		#echo "CMD is Enabled"
-		$cmd
+
+		# eval "$cmd" is used as some commands take this form
+		# set_some_var=1 ./run-my-test.sh.
+		# simulated on the command line:
+		# "x=1 ls" - does not work
+		# eval "x=1 ls" - this does work
+
+		eval "$cmd"
 	else
 		echo "CMD is Disabled"
 	fi

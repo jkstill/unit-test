@@ -122,13 +122,13 @@ To summarize usage of _unit-test.sh_:
 
 Environment variables
 
- * useTimeStamps: setting to 1 causes logs to have a timestamp as part of the log file name
- *         debug: setting to 1 will include debugging output
- *  unitTestJson: set this to the name of your JSON configuration file
- *      useColor: set this to 0 (zero) if you do not want colors
- *     usePython: force the use of python to parse JSON - jq normally used if available
- *        dryRun: set to 1 and CMDs will be shown, but not executed
- *          help: print help and exit
+ - useTimeStamps: setting to 1 causes logs to have a timestamp as part of the log file name
+ -         debug: setting to 1 will include debugging output
+ -  unitTestJson: set this to the name of your JSON configuration file
+ -      useColor: set this to 0 (zero) if you do not want colors
+ -     usePython: force the use of python to parse JSON - jq normally used if available
+ -        dryRun: set to 1 and CMDs will be shown, but not executed
+ -          help: print help and exit
 
 The timestamped logs are useful for comparing runs.
 

@@ -118,13 +118,7 @@ Unit Test: mytest.json
 
 ```
 
-The command line switch '-n' is used do initiate the dry-run mode where none of the test commands are actually executed, but only displayed
-
 To summarize usage of _unit-test.sh_:
-
-Switches:
-
- * -n dry run mode
 
 Environment variables
 
@@ -133,6 +127,8 @@ Environment variables
  *  unitTestJson: set this to the name of your JSON configuration file
  *      useColor: set this to 0 (zero) if you do not want colors
  *     usePython: force the use of python to parse JSON - jq normally used if available
+ *        dryRun: set to 1 and CMDs will be shown, but not executed
+ *          help: print help and exit
 
 The timestamped logs are useful for comparing runs.
 

@@ -6,8 +6,63 @@ set -u
 
 source ./ansi-color.sh
 
-debug=${debug:-0}
+##############################
+# Variables that can be 
+# controlled from CLI
+##############################
+
+##############################
+# enable debug
+# use debug=1 on CLI to enable
+##############################
+declare debug=${debug:-0}
+
 declare internalDebug
+
+if [[ $debug -eq 0 ]]; then
+	internalDebug=1
+else
+	internalDebug=0
+fi
+
+#####################
+# print help
+#####################
+declare help=${help:-0}
+
+######################################
+# control use of color in logfile
+# set useColor=0 should you want a log file without the escape codes
+######################################
+declare useColor=${useColor:-1}
+
+###############################################
+# control the use of python for parsing JSON
+# python is used if jq is not installed
+# this can force the use of Python
+###############################################
+declare usePython=${usePython:-0}
+
+####################################
+# enable for timestamped log files
+# useTimeStamps=1 on the command line
+###################################
+declare useTimeStamps=${useTimeStamps:-0}
+declare timeStamp=$(date +%Y-%m-%d_%H-%M-%S)
+
+###################################
+# set the JSON file name
+# unitTestJson=some-file-name.json
+##################################
+declare unitTestJson=${unitTestJson:-'unit-test.json'}
+declare logFile=$(echo $unitTestJson | cut -f1 -d\.)
+[[ $useTimeStamps -gt 0 ]] && logFile=${logFile}_${timeStamp}.log || logFile=${logFile}.log
+
+#########################################
+# dry run only 
+# display commands but do not execute
+#########################################
+declare dryRun=${dryRun:-0}
 
 : << 'COMMENT'
 
@@ -30,15 +85,6 @@ shell return values are the opposite
 
 COMMENT
 
-# set useColor=0 should you want a log file without the escape codes
-useColor=${useColor:-1}
-
-if [[ $debug -eq 0 ]]; then
-	internalDebug=1
-else
-	internalDebug=0
-fi
-
 isDebugEnabled () {
 	return $internalDebug
 }
@@ -55,12 +101,49 @@ printDebug () {
 	fi
 }
 
+help () {
+
+	 basename $0
+ 
+cat <<-EOF
+  Set Variables on the CLI to control
+  ( getopts not used)
+
+  useColor=[0|1]
+    0: do not use colors
+    1: use colors (default)
+
+  useTimeStamps=[0|1]
+    0: do not use timestamps when creating log files (default)
+    1: use timestamps when creating log files
+
+  unitTestJson='filename'
+    default is 'unit-test.json
+
+  usePython=[0|1]
+    0: parse with Python only if JQ (jquery) is not installed (default)
+    1: parse with Python 
+
+  debug=[0|1]
+    0: do not print debug statements (default)
+    1: print debug statements
+
+  dryRun=[0|1]
+    0: run all tests (default)
+    1: do not run tests - print the CMDs to be run
+
+  help=[0|1]
+    0: do not show help (default)
+    1: show help and exit
+
+EOF
+
+}
+
 
 ##############################################
 # use jq to parse JSON if it is available
 ##############################################
-
-declare usePython=${usePython:-1}
 
 jqBin=$(which jq)
 pythonBin=$(which python)
@@ -92,9 +175,6 @@ isJQEnabled () {
 }
 
 
-# enable for timestamped log files
-useTimeStamps=${useTimeStamps:-0}
-timeStamp=$(date +%Y-%m-%d_%H-%M-%S)
 
 printError () {
 	declare msg="$@"
@@ -132,9 +212,6 @@ printOK () {
 	fi
 }
 
-unitTestJson=${unitTestJson:-'unit-test.json'}
-logFile=$(echo $unitTestJson | cut -f1 -d\.)
-[[ $useTimeStamps -gt 0 ]] && logFile=${logFile}_${timeStamp}.log || logFile=${logFile}.log
 
 if $(isDebugEnabled); then
 	echo "Log File: $logFile"
@@ -232,10 +309,7 @@ exec 2> >(tee -ia $logFile >&2)
 #exec 2>&1
 
 exeEnable
-## arg of -n means do not run executables, just show cmds
-getopts n arg
-#echo "ARG: $arg"
-if [[ $arg = 'n' ]]; then
+if [[ $dryRun -ne 0 ]]; then
 	exeDisable
 fi
 
@@ -286,6 +360,11 @@ expectedResultCount=$(grep -Pc '"result"\s+:' $unitTestJson)
 ################################
 # main program
 ################################
+
+if [[ $help -ne 0 ]]; then
+	help
+	exit
+fi
 
 printDebug "lineCount: $lineCount"
 
@@ -341,7 +420,7 @@ do
 	run ${cmds[$i]}
 	tmpRC=$?
 
-	# if dryrun via -n then set the return code to the expected value
+	# if dryrun via dryRun=1 then set the return code to the expected value
 	if $(isExeEnabled); then
 		printDebug "Setting rc = $tmpRC"
 		rc=$tmpRC

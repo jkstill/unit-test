@@ -1,0 +1,27 @@
+
+
+{
+	"version" : 0.1,
+	"tests" : [
+		{
+			"notes" : "this is test notes 1",
+			"cmd" : "test-cmd-1",
+			"result-type" : "integer",
+			"result" : 0
+		},
+		{
+			"notes" : "this is test notes 2",
+			"cmd" : "test-cmd-2",
+			"result-type" : "integer",
+			"result" : 0
+		},
+		{
+			"notes" : "this is test notes 3",
+			"cmd" : "test-cmd-3",
+			"result-type" : "integer",
+			"result" : 1
+		}
+	]
+}
+
+

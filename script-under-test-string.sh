@@ -25,7 +25,7 @@ declare -a argArray=($args)
 	exit 2
 }
 
-echo "OK"
+echo 'OK'
 
 exit 0
 

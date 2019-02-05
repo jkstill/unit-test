@@ -300,6 +300,23 @@ printOK () {
 	fi
 }
 
+printMsg () {
+	declare msg="$@"
+	if [[ $useColor -ne 0 ]]; then
+		# redirect this call to STDERR as all debug statements to go to STDERR
+		# save old STDOUT
+		exec 7>&1
+		# redirect STDOUT to STDERR
+		exec 1>&2
+		# output
+		colorPrint fg=black bg=cyan msg="$msg"
+		# restore STDOUT and close 7
+		exec 1>&7 7>&-
+	else
+		echo 1>&2 "$msg"
+	fi
+}
+
 
 if $(isDebugEnabled); then
 	echo "Log File: $logFile"
@@ -372,6 +389,11 @@ isExeEnabled () {
 # if $(executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]}); then
 
 executionSucceeded () {
+
+	if $(isDebugEnabled); then
+		printMsg "all args: $*"
+	fi
+
 	declare returnType=$1
 	declare expectedVal=$2
 	declare actualVal=$3
@@ -437,19 +459,19 @@ run () {
 		# "x=1 ls" - does not work
 		# eval "x=1 ls" - this does work
 
-		echo 1>&2 "arg type: $returnType"
+		printMsg "arg type: $returnType"
 
 		if [[ $returnType == 'string' ]]; then
-			echo 1>&2 "Evaluating string"
+			printMsg "Evaluating string"
 			retval=$(eval "$cmd")
 		else
-			echo 1>&2 "Evaluating integer"
+			printMsg "Evaluating integer"
 			eval 1>&2 "$cmd"
 			retval=$?
 		fi
 	else
 		#echo 1>&2 "CMD is Disabled"
-		:
+		retval='Command Execution Disabled'
 	fi
 
 	echo $retval
@@ -642,8 +664,9 @@ do
 		printDebug "Setting rc = $tmpRC"
 		rc=$tmpRC
 	else
-		rc=expectedRC[$i]
+		rc=${expectedRC[$i]}
 	fi
+	#echo "RC: $rc"
 
 	# change this to test expected outcome based on the return-type
 	#if [[ ${expectedRC[$i]} -ne $rc ]]; then
@@ -651,13 +674,13 @@ do
 	# trace the function that determines success or failure
 	if $(isDebugEnabled); then
 		printDebug "Execution State Test"
-		executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc
+		#executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc
 	fi
 
 	# this next will not work if debug is enabled
 	# save the state and then re-enable
 	declare currDebugState=$(getDebug)
-	echo "currDebugState: |$currDebugState|"
+	#printMsg "currDebugState: |$currDebugState|"
 	disableDebug;
 
 	if $(executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc); then

@@ -22,7 +22,7 @@
 			"result" : 2
 		},
 		{
-			"notes" : "This script name has a typo",
+			"notes" : "This test should FAIL - This script name has a typo",
 			"cmd" : "./script-under-te5t.sh 2 this test exits with an error",
 			"result-type" : "integer",
 			"result" : 2
@@ -46,13 +46,13 @@
 			"result" : "Error"
 		},
 		{
-			"notes" : "string return type - failed execution - expecting Error - gets OK",
+			"notes" : "This test should FAIL - string return type - failed execution - expecting Error - gets OK",
 			"cmd" : "./script-under-test-string.sh OK",
 			"result-type" : "string",
 			"result" : "Error"
 		},
 		{
-			"notes" : "string return type - failed execution - expecting OK - gets Warning",
+			"notes" : "this test should FAIL - string return type - failed execution - expecting OK - gets Warning",
 			"cmd" : "./script-under-test-string.sh Warning",
 			"result-type" : "string",
 			"result" : "OK"

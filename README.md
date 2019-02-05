@@ -114,33 +114,6 @@ Following is the configuration file included here, unit-test.json
 }
 ```
 
-The validity of the file can be tested with the test-json.sh script
-
-```bash
->  ./test-json.sh unit-test.json
-version: 1.0
-```
-
-If the script is not valid JSON there will be error output:
-
-```bash
-
->  ./test-json.sh unit-test.json
-version:
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-  File "/usr/lib/python2.7/json/__init__.py", line 291, in load
-    **kw)
-  File "/usr/lib/python2.7/json/__init__.py", line 339, in loads
-    return _default_decoder.decode(s)
-  File "/usr/lib/python2.7/json/decoder.py", line 364, in decode
-    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
-  File "/usr/lib/python2.7/json/decoder.py", line 380, in raw_decode
-    obj, end = self.scan_once(s, idx)
-ValueError: Expecting property name: line 3 column 2 (char 4)
-
-```
-
 ## unit-test.sh
 
 Currently the name of the JSON file to be used is hard coded in the top of the script _unit-test.sh_.
@@ -183,6 +156,47 @@ Environment variables
 The timestamped logs are useful for comparing runs.
 
 Setting useColor=0 is useful when you need a logfile that does not have color escape codes in it.
+
+## convert-json.sh
+
+usage: convert-json.sh my-unit-tests.json
+
+If you have any JSON files that were created for use with the previous iteration of _unit-test.sh_, the _convert-json.sh_ script will add the "result-type" lines for you.
+
+Running the script twice on the same script will have no effect as the new line will be detected.
+
+## test-json.sh
+
+usage: test-json.sh
+
+The _test-json.sh_ script can be used to validate a JSON file.
+
+The script returns 0 for success, 1 for failure.
+
+
+```bash
+$ ./test-json.sh test.json
+version: 0.1
+$ $?
+0
+
+$  ./test-json.sh error.json
+version:
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python2.7/json/__init__.py", line 291, in load
+    **kw)
+  File "/usr/lib/python2.7/json/__init__.py", line 339, in loads
+    return _default_decoder.decode(s)
+  File "/usr/lib/python2.7/json/decoder.py", line 364, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/usr/lib/python2.7/json/decoder.py", line 382, in raw_decode
+    raise ValueError("No JSON object could be decoded")
+ValueError: No JSON object could be decoded
+
+$ echo $?
+1
+```
 
 # Dependencies
 

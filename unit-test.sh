@@ -92,6 +92,14 @@ declare jqLastEl=${#jqColumns[@]}
 declare funcSuccessRetval=0
 declare funcFailRetval=1
 
+# channel where STDOUT is saved
+declare -a channels
+declare stdoutSaveChannel=7
+declare STDIN=0
+declare STDOUT=1
+declare STDERR=2
+
+
 : << 'COMMENT'
 
 internalDebug: reverse value of debug
@@ -136,20 +144,28 @@ setDebug () {
 	internalDebug=$1
 }
 
+redirectSTDIN () {
+	# save old STDOUT
+	exec {channels[$stdoutSaveChannel]}>&"$STDOUT"
+	# redirect STDOUT to STDERR
+	exec {channels[$STDIN]}>&"$STDERR"
+}
+
+restoreSTDIN () {
+	exec {channels[$STDIN]}>&"${channels[$stdoutSaveChannel]}"
+	exec {channels[$stdoutSaveChannel]}>&-
+
+}
+
 printDebug () {
 	declare msg="$@"
 
 	if $(isDebugEnabled); then
 		if [[ $useColor -ne 0 ]]; then
 			# redirect this call to STDERR as all debug statements to go to STDERR
-			# save old STDOUT
-			exec 7>&1
-			# redirect STDOUT to STDERR
-			exec 1>&2
-			# output
+			redirectSTDIN
 			colorPrint fg=lightYellow bg=blue msg="$msg"
-			# restore STDOUT and close 7
-			exec 1>&7 7>&-
+			restoreSTDIN
 		else
 			echo 1>&2 "$msg"
 		fi
@@ -229,21 +245,13 @@ isJQEnabled () {
 	fi
 }
 
-
-
 printError () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
 
-		# redirect this call to STDERR as all debug statements to go to STDERR
-		# save old STDOUT
-		exec 7>&1
-		# redirect STDOUT to STDERR
-		exec 1>&2
-		# output
+		redirectSTDIN
 		colorPrint fg=red bg=lightGray msg="$msg"
-		# restore STDOUT and close 7
-		exec 1>&7 7>&-
+		restoreSTDIN
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -252,15 +260,9 @@ printError () {
 printErrorRpt () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		# redirect this call to STDERR as all debug statements to go to STDERR
-		# save old STDOUT
-		exec 7>&1
-		# redirect STDOUT to STDERR
-		exec 1>&2
-		# output
+		redirectSTDIN
 		colorPrint fg=black bg=yellow msg="$msg"
-		# restore STDOUT and close 7
-		exec 1>&7 7>&-
+		restoreSTDIN
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -269,15 +271,9 @@ printErrorRpt () {
 printTestError () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		# redirect this call to STDERR as all debug statements to go to STDERR
-		# save old STDOUT
-		exec 7>&1
-		# redirect STDOUT to STDERR
-		exec 1>&2
-		# output
+		redirectSTDIN
 		colorPrint fg=white bg=red msg="$msg"
-		# restore STDOUT and close 7
-		exec 1>&7 7>&-
+		restoreSTDIN
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -286,15 +282,9 @@ printTestError () {
 printOK () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		# redirect this call to STDERR as all debug statements to go to STDERR
-		# save old STDOUT
-		exec 7>&1
-		# redirect STDOUT to STDERR
-		exec 1>&2
-		# output
+		redirectSTDIN
 		colorPrint fg=black bg=lightGreen msg="$msg"
-		# restore STDOUT and close 7
-		exec 1>&7 7>&-
+		restoreSTDIN
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -305,13 +295,17 @@ printMsg () {
 	if [[ $useColor -ne 0 ]]; then
 		# redirect this call to STDERR as all debug statements to go to STDERR
 		# save old STDOUT
-		exec 7>&1
+		#exec 7>&1
 		# redirect STDOUT to STDERR
-		exec 1>&2
+		#exec 1>&2
 		# output
+		# for some reason using the functions to do the redirect break the code in run() when it calls printMsg()
+		# do not yet know why - not using printMsg there for now
+		redirectSTDIN
 		colorPrint fg=black bg=cyan msg="$msg"
+		restoreSTDIN
 		# restore STDOUT and close 7
-		exec 1>&7 7>&-
+		#exec 1>&7 7>&-
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -460,10 +454,14 @@ run () {
 		# "x=1 ls" - does not work
 		# eval "x=1 ls" - this does work
 
-		printMsg "arg type: $returnType"
+		# do not use printMsg in this code
+		# the calls to redirectSTDIN and restoreSTDIN that are in printMsg() cause this to break
+		#printMsg "arg type: $returnType"
+		echo 1>&2 "arg type: $returnType"
+
 
 		if [[ $returnType == 'string' ]]; then
-			printMsg "Evaluating string"
+			echo 1>&2 "Evaluating string"
 			# using a loop in the event the test script emits many lines
 			# get the final line as the return value
 			while read line
@@ -471,7 +469,7 @@ run () {
 				retval=$line
 			done < <( eval "$cmd" )
 		else
-			printMsg "Evaluating integer"
+			echo 1>&2 "Evaluating integer"
 			eval 1>&2 "$cmd"
 			retval=$?
 		fi

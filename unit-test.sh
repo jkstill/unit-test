@@ -93,12 +93,46 @@ declare funcSuccessRetval=0
 declare funcFailRetval=1
 
 # channel where STDOUT is saved
+: << 'COMMENT'
+
+An attempt was made to use variables to save and restore file descriptors
+
+For some reason using variables names does not work correctly.
+
+The usage appears to be correct as per documention, so I am not sure what the problem is.
+
+What happens when variables are used:
+
+The run() function will encounter an invalid file descriptor (fd).
+
+When the fd values are hardcoded all works fine.
+
+When variables are used, it breaks.
+
+This has nothing to do with the code that redirects stdout/stderr to a tee coprocess just a few lines below.
+Removing those lines does not change the behavior
+
+Bash at this time is version 4.3.48
+
+And so these variables are not currently used, but may be in the future if I can learn how to make this work properly with variables.
+
+COMMENT
+
 declare -a channels
+declare rptChannel=6
 declare stdoutSaveChannel=7
+declare stderrSaveChannel=8
 declare STDIN=0
 declare STDOUT=1
 declare STDERR=2
 
+# Redirect stdout ( > ) into a named pipe ( >() ) running "tee"
+# process substitution
+# clear/recreate the logfile
+> $logFile
+#exec {channels[$rptChannel]> >(tee -ia $logFile)
+exec 1> >(tee -ia $logFile)
+exec 2> >(tee -ia $logFile >&2)
 
 : << 'COMMENT'
 
@@ -144,16 +178,47 @@ setDebug () {
 	internalDebug=$1
 }
 
+: << 'COMMENT'
+
+Why is STDOUT being redirected to STDERR?
+
+If a script under test indicates succuss/failure by the last text string that it output,
+we need to capture that string.
+
+This script unit-test.sh also writes informational and debugging error messages.
+This are being written to STDERR so as not to interfere with output from the scripts under test.
+
+See the comments near the top of the script about redirection with variables.
+
+For some reason the use of variables for fd redirection is not working.
+
+COMMENT
+
 redirectSTDOUT () {
+
 	# save old STDOUT
-	exec {channels[$stdoutSaveChannel]}>&"$STDOUT"
+	#exec {channels[$stdoutSaveChannel]}>&"$STDOUT"
+	#exec {stdoutSaveChannel}>&"$STDOUT"
+	exec 7>&1
+
 	# redirect STDOUT to STDERR
-	exec {channels[$STDIN]}>&"$STDERR"
+	#exec {channels[$STDOUT]}>&"$STDERR"
+	#exec {STDOUT}>&"$STDERR"
+	exec 1>&2
 }
 
 restoreSTDOUT () {
-	exec {channels[$STDIN]}>&"${channels[$stdoutSaveChannel]}"
-	exec {channels[$stdoutSaveChannel]}>&-
+
+	# restore STDOUT
+	#exec {channels[$STDOUT]}>&"${channels[$stdoutSaveChannel]}"
+	#exec {STDOUT}>&"$stdoutSaveChannel"
+	exec 1>&7 
+
+	# close the save channel
+	#exec {channels[$stdoutSaveChannel]}>&-
+	#exec {stdoutSaveChannel}>&-
+	exec 7>&-
+
 
 }
 
@@ -293,19 +358,9 @@ printOK () {
 printMsg () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		# redirect this call to STDERR as all debug statements to go to STDERR
-		# save old STDOUT
-		#exec 7>&1
-		# redirect STDOUT to STDERR
-		#exec 1>&2
-		# output
-		# for some reason using the functions to do the redirect break the code in run() when it calls printMsg()
-		# do not yet know why - not using printMsg there for now
 		redirectSTDOUT
 		colorPrint fg=black bg=cyan msg="$msg"
 		restoreSTDOUT
-		# restore STDOUT and close 7
-		#exec 1>&7 7>&-
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -454,11 +509,7 @@ run () {
 		# "x=1 ls" - does not work
 		# eval "x=1 ls" - this does work
 
-		# do not use printMsg in this code
-		# the calls to redirectSTDOUT and restoreSTDOUT that are in printMsg() cause this to break
-		#printMsg "arg type: $returnType"
-		echo 1>&2 "arg type: $returnType"
-
+		printMsg "arg type: $returnType"
 
 		if [[ $returnType == 'string' ]]; then
 			echo 1>&2 "Evaluating string"
@@ -469,7 +520,7 @@ run () {
 				retval=$line
 			done < <( eval "$cmd" )
 		else
-			echo 1>&2 "Evaluating integer"
+			printMsg "Evaluating integer"
 			eval 1>&2 "$cmd"
 			retval=$?
 		fi
@@ -480,15 +531,6 @@ run () {
 
 	echo $retval
 }
-
-
-
-# Redirect stdout ( > ) into a named pipe ( >() ) running "tee"
-# process substitution
-> $logFile
-exec > >(tee -ia $logFile)
-exec 2> >(tee -ia $logFile >&2)
-#exec 2>&1
 
 exeEnable
 if [[ $dryRun -ne 0 ]]; then

@@ -37,7 +37,11 @@ There are two types of possible return values
 - integer
 - string
 
-If string it may be multiple workds, and *MUST* be the last line output by the script under test
+If 'integer' the value is taken from $? as the ```exit N``` that indicates if the script execution succeeded or not.
+
+The traditional value for this is 0 (zero) for success, and different positive integers for failures, though it is not necessary to use 0 for success.
+
+If 'string' it may be multiple words, and the value used to determine success/failure *MUST* be the last line output by the script under test
 
 Following is the configuration file included here, unit-test.json
 
@@ -108,8 +112,6 @@ Following is the configuration file included here, unit-test.json
 		}
 	]
 }
-
-
 ```
 
 The validity of the file can be tested with the test-json.sh script

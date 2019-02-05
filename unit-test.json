@@ -34,6 +34,12 @@
 			"result" : "OK"
 		},
 		{
+			"notes" : "string return type - Two Words returned - successful execution",
+			"cmd" : "./script-under-test-string.sh Two Words this is a test",
+			"result-type" : "string",
+			"result" : "Two Words"
+		},
+		{
 			"notes" : "string return type - successful execution of failure with warning",
 			"cmd" : "./script-under-test-string.sh Warning",
 			"result-type" : "string",

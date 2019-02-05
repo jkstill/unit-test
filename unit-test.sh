@@ -395,8 +395,9 @@ executionSucceeded () {
 	fi
 
 	declare returnType=$1
-	declare expectedVal=$2
-	declare actualVal=$3
+	# quotes required as the values may have multiple words
+	declare expectedVal="$2"
+	declare actualVal="$3"
 
 	printDebug "====  executionSucceeded ===="
 	printDebug "returnType: $returnType"
@@ -416,7 +417,7 @@ executionSucceeded () {
 
 	if [[ $returnType = 'string' ]]; then
 
-		if [[ $actualVal == $expectedVal ]]; then
+		if [[ "$actualVal" == "$expectedVal" ]]; then
 			retval=$funcSuccessRetval
 		else
 			retval=$funcFailRetval
@@ -463,7 +464,12 @@ run () {
 
 		if [[ $returnType == 'string' ]]; then
 			printMsg "Evaluating string"
-			retval=$(eval "$cmd")
+			# using a loop in the event the test script emits many lines
+			# get the final line as the return value
+			while read line
+			do
+				retval=$line
+			done < <( eval "$cmd" )
 		else
 			printMsg "Evaluating integer"
 			eval 1>&2 "$cmd"
@@ -673,8 +679,9 @@ do
 
 	# trace the function that determines success or failure
 	if $(isDebugEnabled); then
-		printDebug "Execution State Test"
-		#executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc
+		printDebug "==>> Execution State Test"
+		# quotes required as the values may have multiple words
+		executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"
 	fi
 
 	# this next will not work if debug is enabled
@@ -683,7 +690,8 @@ do
 	#printMsg "currDebugState: |$currDebugState|"
 	disableDebug;
 
-	if $(executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc); then
+	# quotes required as the values may have multiple words
+	if $(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"); then
 		printOK "OK: ${cmds[$i]}"
 		setDebug $currDebugState
 	else
@@ -691,7 +699,7 @@ do
 		setDebug $currDebugState
 
 		(( FAIL_COUNT++ ))
-		printTestError "Error encountered in ${cmds[$i]}\nExpected RC=${expectedRC[$i]} - Actual RC: $rc"
+		printTestError "Error encountered in ${cmds[$i]}\nExpected RC=|${expectedRC[$i]}| - Actual RC: |$rc|"
 
 		# pushed fail info to arrays
 		(( failedIDX++ ))
@@ -732,7 +740,7 @@ if [[ $FAIL_COUNT -gt 0 ]]; then
 		printErrorRpt "Test: ${failedTest[$i]}"
 		printErrorRpt "CMD: ${failedCMD[$i]}"
 		printErrorRpt "Expected RC: ${failedExpectedRC[$i]}"
-		printErrorRpt "  ACtual RC: ${failedActualRC[$i]}"
+		printErrorRpt "  Actual RC: ${failedActualRC[$i]}"
 		printErrorRpt "============================================================"
 	done
 

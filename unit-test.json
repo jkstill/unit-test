@@ -6,22 +6,62 @@
 		{
 			"notes" : "normal successful execution",
 			"cmd" : "./script-under-test.sh this is a test",
+			"result-type" : "integer",
 			"result" : 0
 		},
 		{
 			"notes" : "execution with Warning ",
 			"cmd" : "./script-under-test.sh 1 this test exits with a warning",
+			"result-type" : "integer",
 			"result" : 1
 		},
 		{
 			"notes" : "execution with Error ",
 			"cmd" : "./script-under-test.sh 2 this test exits with an error",
+			"result-type" : "integer",
 			"result" : 2
 		},
 		{
-			"notes" : "This script name has a typo",
+			"notes" : "This test should FAIL - This script name has a typo",
 			"cmd" : "./script-under-te5t.sh 2 this test exits with an error",
+			"result-type" : "integer",
 			"result" : 2
+		},
+		{
+			"notes" : "string return type - successful execution",
+			"cmd" : "./script-under-test-string.sh this is a test",
+			"result-type" : "string",
+			"result" : "OK"
+		},
+		{
+			"notes" : "string return type - Two Words returned - successful execution",
+			"cmd" : "./script-under-test-string.sh Two Words this is a test",
+			"result-type" : "string",
+			"result" : "Two Words"
+		},
+		{
+			"notes" : "string return type - successful execution of failure with warning",
+			"cmd" : "./script-under-test-string.sh Warning",
+			"result-type" : "string",
+			"result" : "Warning"
+		},
+		{
+			"notes" : "string return type - successful execution of failure with error",
+			"cmd" : "./script-under-test-string.sh Error",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
+			"notes" : "This test should FAIL - string return type - failed execution - expecting Error - gets OK",
+			"cmd" : "./script-under-test-string.sh OK",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
+			"notes" : "this test should FAIL - string return type - failed execution - expecting OK - gets Warning",
+			"cmd" : "./script-under-test-string.sh Warning",
+			"result-type" : "string",
+			"result" : "OK"
 		}
 	]
 }

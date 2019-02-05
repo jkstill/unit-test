@@ -30,65 +30,88 @@ Python is used as by default in includes JSON processing code.
 
 Currently this works with Python 2 only, Python 3 will cause an error.
 
-There are 3 values expected for each test, any notes, the cmd itself, and the expected return code
+There are 4 values expected for each test, any notes, the cmd itself, the type of the returned value and the expected return code
+
+There are two types of possible return values
+
+- integer
+- string
+
+If 'integer' the value is taken from $? as the ```exit N``` that indicates if the script execution succeeded or not.
+
+The traditional value for this is 0 (zero) for success, and different positive integers for failures, though it is not necessary to use 0 for success.
+
+If 'string' it may be multiple words, and the value used to determine success/failure *MUST* be the last line output by the script under test
 
 Following is the configuration file included here, unit-test.json
 
 ```json
 {
-   "comments" : "This is the configuration file for unit-test.sh",
-   "version" : 1.0,
-   "tests" : [
-      {
-         "notes" : "normal successful execution",
-         "cmd" : "./script-under-test.sh this is a test",
-         "result" : 0
-      },
-      {
-         "notes" : "execution with Warning ",
-         "cmd" : "./script-under-test.sh 1 this test exits with a warning",
-         "result" : 1
-      },
-      {
-         "notes" : "execution with Error ",
-         "cmd" : "test-cmd-3",
-         "cmd" : "./script-under-test.sh 2 this test exits with an error",
-         "result" : 2
-      },
-      {
-         "notes" : "This script does not exist",
-         "cmd" : "no-script-exists.sh",
-         "result" : 0
-      }
-   ]
+	"comments" : "This is the configuration file for unit-test.sh",
+	"version" : 1.0,
+	"tests" : [
+		{
+			"notes" : "normal successful execution",
+			"cmd" : "./script-under-test.sh this is a test",
+			"result-type" : "integer",
+			"result" : 0
+		},
+		{
+			"notes" : "execution with Warning ",
+			"cmd" : "./script-under-test.sh 1 this test exits with a warning",
+			"result-type" : "integer",
+			"result" : 1
+		},
+		{
+			"notes" : "execution with Error ",
+			"cmd" : "./script-under-test.sh 2 this test exits with an error",
+			"result-type" : "integer",
+			"result" : 2
+		},
+		{
+			"notes" : "This test should FAIL - This script name has a typo",
+			"cmd" : "./script-under-te5t.sh 2 this test exits with an error",
+			"result-type" : "integer",
+			"result" : 2
+		},
+		{
+			"notes" : "string return type - successful execution",
+			"cmd" : "./script-under-test-string.sh this is a test",
+			"result-type" : "string",
+			"result" : "OK"
+		},
+		{
+			"notes" : "string return type - Two Words returned - successful execution",
+			"cmd" : "./script-under-test-string.sh Two Words this is a test",
+			"result-type" : "string",
+			"result" : "Two Words"
+		},
+		{
+			"notes" : "string return type - successful execution of failure with warning",
+			"cmd" : "./script-under-test-string.sh Warning",
+			"result-type" : "string",
+			"result" : "Warning"
+		},
+		{
+			"notes" : "string return type - successful execution of failure with error",
+			"cmd" : "./script-under-test-string.sh Error",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
+			"notes" : "This test should FAIL - string return type - failed execution - expecting Error - gets OK",
+			"cmd" : "./script-under-test-string.sh OK",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
+			"notes" : "this test should FAIL - string return type - failed execution - expecting OK - gets Warning",
+			"cmd" : "./script-under-test-string.sh Warning",
+			"result-type" : "string",
+			"result" : "OK"
+		}
+	]
 }
-```
-
-The validity of the file can be tested with the test-json.sh script
-
-```bash
->  ./test-json.sh unit-test.json
-version: 1.0
-```
-
-If the script is not valid JSON there will be error output:
-
-```bash
-
->  ./test-json.sh unit-test.json
-version:
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-  File "/usr/lib/python2.7/json/__init__.py", line 291, in load
-    **kw)
-  File "/usr/lib/python2.7/json/__init__.py", line 339, in loads
-    return _default_decoder.decode(s)
-  File "/usr/lib/python2.7/json/decoder.py", line 364, in decode
-    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
-  File "/usr/lib/python2.7/json/decoder.py", line 380, in raw_decode
-    obj, end = self.scan_once(s, idx)
-ValueError: Expecting property name: line 3 column 2 (char 4)
-
 ```
 
 ## unit-test.sh
@@ -133,6 +156,47 @@ Environment variables
 The timestamped logs are useful for comparing runs.
 
 Setting useColor=0 is useful when you need a logfile that does not have color escape codes in it.
+
+## convert-json.sh
+
+usage: convert-json.sh my-unit-tests.json
+
+If you have any JSON files that were created for use with the previous iteration of _unit-test.sh_, the _convert-json.sh_ script will add the "result-type" lines for you.
+
+Running the script twice on the same script will have no effect as the new line will be detected.
+
+## test-json.sh
+
+usage: test-json.sh
+
+The _test-json.sh_ script can be used to validate a JSON file.
+
+The script returns 0 for success, 1 for failure.
+
+
+```bash
+$ ./test-json.sh test.json
+version: 0.1
+$ $?
+0
+
+$  ./test-json.sh error.json
+version:
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python2.7/json/__init__.py", line 291, in load
+    **kw)
+  File "/usr/lib/python2.7/json/__init__.py", line 339, in loads
+    return _default_decoder.decode(s)
+  File "/usr/lib/python2.7/json/decoder.py", line 364, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/usr/lib/python2.7/json/decoder.py", line 382, in raw_decode
+    raise ValueError("No JSON object could be decoded")
+ValueError: No JSON object could be decoded
+
+$ echo $?
+1
+```
 
 # Dependencies
 

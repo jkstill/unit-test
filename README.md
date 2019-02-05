@@ -30,38 +30,86 @@ Python is used as by default in includes JSON processing code.
 
 Currently this works with Python 2 only, Python 3 will cause an error.
 
-There are 3 values expected for each test, any notes, the cmd itself, and the expected return code
+There are 4 values expected for each test, any notes, the cmd itself, the type of the returned value and the expected return code
+
+There are two types of possible return values
+
+- integer
+- string
+
+If string it may be multiple workds, and *MUST* be the last line output by the script under test
 
 Following is the configuration file included here, unit-test.json
 
 ```json
 {
-   "comments" : "This is the configuration file for unit-test.sh",
-   "version" : 1.0,
-   "tests" : [
-      {
-         "notes" : "normal successful execution",
-         "cmd" : "./script-under-test.sh this is a test",
-         "result" : 0
-      },
-      {
-         "notes" : "execution with Warning ",
-         "cmd" : "./script-under-test.sh 1 this test exits with a warning",
-         "result" : 1
-      },
-      {
-         "notes" : "execution with Error ",
-         "cmd" : "test-cmd-3",
-         "cmd" : "./script-under-test.sh 2 this test exits with an error",
-         "result" : 2
-      },
-      {
-         "notes" : "This script does not exist",
-         "cmd" : "no-script-exists.sh",
-         "result" : 0
-      }
-   ]
+	"comments" : "This is the configuration file for unit-test.sh",
+	"version" : 1.0,
+	"tests" : [
+		{
+			"notes" : "normal successful execution",
+			"cmd" : "./script-under-test.sh this is a test",
+			"result-type" : "integer",
+			"result" : 0
+		},
+		{
+			"notes" : "execution with Warning ",
+			"cmd" : "./script-under-test.sh 1 this test exits with a warning",
+			"result-type" : "integer",
+			"result" : 1
+		},
+		{
+			"notes" : "execution with Error ",
+			"cmd" : "./script-under-test.sh 2 this test exits with an error",
+			"result-type" : "integer",
+			"result" : 2
+		},
+		{
+			"notes" : "This test should FAIL - This script name has a typo",
+			"cmd" : "./script-under-te5t.sh 2 this test exits with an error",
+			"result-type" : "integer",
+			"result" : 2
+		},
+		{
+			"notes" : "string return type - successful execution",
+			"cmd" : "./script-under-test-string.sh this is a test",
+			"result-type" : "string",
+			"result" : "OK"
+		},
+		{
+			"notes" : "string return type - Two Words returned - successful execution",
+			"cmd" : "./script-under-test-string.sh Two Words this is a test",
+			"result-type" : "string",
+			"result" : "Two Words"
+		},
+		{
+			"notes" : "string return type - successful execution of failure with warning",
+			"cmd" : "./script-under-test-string.sh Warning",
+			"result-type" : "string",
+			"result" : "Warning"
+		},
+		{
+			"notes" : "string return type - successful execution of failure with error",
+			"cmd" : "./script-under-test-string.sh Error",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
+			"notes" : "This test should FAIL - string return type - failed execution - expecting Error - gets OK",
+			"cmd" : "./script-under-test-string.sh OK",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
+			"notes" : "this test should FAIL - string return type - failed execution - expecting OK - gets Warning",
+			"cmd" : "./script-under-test-string.sh Warning",
+			"result-type" : "string",
+			"result" : "OK"
+		}
+	]
 }
+
+
 ```
 
 The validity of the file can be tested with the test-json.sh script

@@ -64,6 +64,34 @@ declare logFile=$(echo $unitTestJson | cut -f1 -d\.)
 #########################################
 declare dryRun=${dryRun:-0}
 
+
+#########################################
+# other global vars
+#########################################
+
+# the number of key value pairs per object
+# currently
+# - notes
+# - cmd
+# - result-type
+# - result
+declare valuesPerObject=4
+
+declare -a jqColumns
+
+jqColumns[0]='.notes'
+jqColumns[1]='.cmd'
+jqColumns[2]='."result-type"'
+jqColumns[3]='.result'
+
+# lowest element  is 0, so subtract 1 as this reports count
+declare jqLastEl=${#jqColumns[@]}
+(( jqLastEl-- )) 
+
+# values that functions return for success/failure
+declare funcSuccessRetval=0
+declare funcFailRetval=1
+
 : << 'COMMENT'
 
 internalDebug: reverse value of debug
@@ -89,14 +117,41 @@ isDebugEnabled () {
 	return $internalDebug
 }
 
+disableDebug () {
+	internalDebug=$funcFailRetval
+}
+
+enableDebug () {
+	internalDebug=$funcSuccessRetval
+}
+
+## use the actual values, not the logical ones
+## used for getting/setting state such as when we do not want debug to run
+
+getDebug () {
+	echo $internalDebug
+}
+
+setDebug () {
+	internalDebug=$1
+}
+
 printDebug () {
 	declare msg="$@"
 
 	if $(isDebugEnabled); then
 		if [[ $useColor -ne 0 ]]; then
+			# redirect this call to STDERR as all debug statements to go to STDERR
+			# save old STDOUT
+			exec 7>&1
+			# redirect STDOUT to STDERR
+			exec 1>&2
+			# output
 			colorPrint fg=lightYellow bg=blue msg="$msg"
+			# restore STDOUT and close 7
+			exec 1>&7 7>&-
 		else
-			echo "$msg"
+			echo 1>&2 "$msg"
 		fi
 	fi
 }
@@ -150,7 +205,7 @@ pythonBin=$(which python)
 
 declare jqVersion=$($jqBin --version 2>/dev/null)
 declare useJQ=1
-#echo jqVersion: "|$jqVersion|"
+printDebug "jqVersion: $jqVersion"
 
 if [[ -n $jqVersion ]]; then
 	useJQ=0
@@ -160,15 +215,15 @@ printDebug "useJQ: $useJQ"
 
 forcePython () {
 	if [[ $usePython -eq 0 ]]; then
-		return 1; # false
+		return $funcFailRetval; # false
 	else
-		return 0; # true
+		return $funcSuccessRetval; # true
 	fi
 }
 
 isJQEnabled () {
 	if $(forcePython); then
-		return 1; # false
+		return $funcFailRetval; # false
 	else
 		return $useJQ
 	fi
@@ -179,36 +234,69 @@ isJQEnabled () {
 printError () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
+
+		# redirect this call to STDERR as all debug statements to go to STDERR
+		# save old STDOUT
+		exec 7>&1
+		# redirect STDOUT to STDERR
+		exec 1>&2
+		# output
 		colorPrint fg=red bg=lightGray msg="$msg"
+		# restore STDOUT and close 7
+		exec 1>&7 7>&-
 	else
-		echo "$msg"
+		echo 1>&2 "$msg"
 	fi
 }
 
 printErrorRpt () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
+		# redirect this call to STDERR as all debug statements to go to STDERR
+		# save old STDOUT
+		exec 7>&1
+		# redirect STDOUT to STDERR
+		exec 1>&2
+		# output
 		colorPrint fg=black bg=yellow msg="$msg"
+		# restore STDOUT and close 7
+		exec 1>&7 7>&-
 	else
-		echo "$msg"
+		echo 1>&2 "$msg"
 	fi
 }
 
 printTestError () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
+		# redirect this call to STDERR as all debug statements to go to STDERR
+		# save old STDOUT
+		exec 7>&1
+		# redirect STDOUT to STDERR
+		exec 1>&2
+		# output
 		colorPrint fg=white bg=red msg="$msg"
+		# restore STDOUT and close 7
+		exec 1>&7 7>&-
 	else
-		echo "$msg"
+		echo 1>&2 "$msg"
 	fi
 }
 
 printOK () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
+		# redirect this call to STDERR as all debug statements to go to STDERR
+		# save old STDOUT
+		exec 7>&1
+		# redirect STDOUT to STDERR
+		exec 1>&2
+		# output
 		colorPrint fg=black bg=lightGreen msg="$msg"
+		# restore STDOUT and close 7
+		exec 1>&7 7>&-
 	else
-		echo "$msg"
+		echo 1>&2 "$msg"
 	fi
 }
 
@@ -281,9 +369,65 @@ isExeEnabled () {
 	return $exeEnabled
 }
 
+# if $(executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]}); then
+
+executionSucceeded () {
+	declare returnType=$1
+	declare expectedVal=$2
+	declare actualVal=$3
+
+	printDebug "====  executionSucceeded ===="
+	printDebug "returnType: $returnType"
+	printDebug "expectedVal: $expectedVal"
+	printDebug "actualVal: $actualVal"
+
+	declare retval=$funcFailRetval # default is fail ( 0 is success )
+	declare actualType
+
+	# is it a number?
+	declare actualValIsNumber='N';
+
+	if [[ $actualVal =~ ^[[:digit:]]+ ]]; then
+		actualValIsNumber='Y'
+	fi
+	printDebug "is number: $actualValIsNumber"
+
+	if [[ $returnType = 'string' ]]; then
+
+		if [[ $actualVal == $expectedVal ]]; then
+			retval=$funcSuccessRetval
+		else
+			retval=$funcFailRetval
+		fi
+	
+	else # numeric
+		if [[ $actualValIsNumber == 'Y' ]]; then
+			if [[ $actualVal -eq $expectedVal ]]; then
+				retval=$funcSuccessRetval
+			else
+				retval=$funcFailRetval
+			fi
+		else
+			printError "Expected a Numeric return of "$expectedVal" but got "$actualVal" instead"
+			retval=$funcFailRetval
+		fi
+	fi
+
+	return $retval
+}
+
+# always echo the return value for consistency
+
 run () {
+	declare returnType=$1
+	shift
 	declare cmd="$*"
-	echo "CMD: $cmd"
+
+	declare retval
+
+	#echo 1>&2 "CMD: $cmd"
+	#echo 1>&2 "Return Type: $returnType"
+
 	if $(isExeEnabled); then
 		#echo "CMD is Enabled"
 
@@ -293,10 +437,22 @@ run () {
 		# "x=1 ls" - does not work
 		# eval "x=1 ls" - this does work
 
-		eval "$cmd"
+		echo 1>&2 "arg type: $returnType"
+
+		if [[ $returnType == 'string' ]]; then
+			echo 1>&2 "Evaluating string"
+			retval=$(eval "$cmd")
+		else
+			echo 1>&2 "Evaluating integer"
+			eval 1>&2 "$cmd"
+			retval=$?
+		fi
 	else
-		echo "CMD is Disabled"
+		#echo 1>&2 "CMD is Disabled"
+		:
 	fi
+
+	echo $retval
 }
 
 
@@ -326,6 +482,7 @@ FAIL_COUNT=0
 
 declare -a cmds
 declare -a cmdMessages
+declare -a returnTypes
 declare -a expectedRC  # RC = result code
 
 # stacks for tests that fail
@@ -341,15 +498,17 @@ failedIDX=-1
 
 cmdCount=$(grep -Pc '"cmd"\s+:' $unitTestJson)
 noteCount=$(grep -Pc '"notes"\s+:' $unitTestJson)
+rcTypeCount=$(grep -Pc '"result-type"\s+:' $unitTestJson)
 expectedResultCount=$(grep -Pc '"result"\s+:' $unitTestJson)
 
-# 3 x any of them should equal the sum of all
-# 3 because each test desscripotion has 3 lines
-(( testCount = cmdCount + noteCount + expectedResultCount ))
-(( chkCount = cmdCount * 3 ))
+# valuesPerObject x any of them should equal the sum of all
+# valuesPerObject because each test desscripotion has N lines
+(( testCount = cmdCount + noteCount + rcTypeCount + expectedResultCount ))
+(( chkCount = cmdCount * valuesPerObject ))
 
 [[ $testCount -ne chkCount ]] && {
 	printError "There is a problem in $unitTestJson - the count of cmds, notes and results are different"
+	exit 1;
 }
 
 #exit
@@ -375,6 +534,28 @@ printDebug "lineCount: $lineCount"
 # this one liner is a little clumsy, but easy to use
 # pull requests for improvement here are welcome
 
+printDebug "Reading JSON file $unitTestJson"
+
+# build up the jq command
+
+declare jqCmd="$jqBin -r '.tests[] | [" 
+declare jqColumnList=''
+
+for el in $(seq 0 $jqLastEl)
+do
+
+	jqColumnList="$jqColumnList ${jqColumns[$el]}"
+
+	[[ $el -lt $jqLastEl ]] && {
+		jqColumnList="$jqColumnList ,"
+	}
+	
+done
+
+jqCmd="$jqCmd $jqColumnList ] | @csv' "
+
+printDebug jqCmd: $jqCmd
+
 if $(isJQEnabled); then
 
 	# separated with ^ to avoid possible issues with commas in data
@@ -388,10 +569,15 @@ if $(isJQEnabled); then
 		# printDebug "line: $line"
 		cmdMessages[$i]=$(echo $line | cut -f1 -d^)
 		cmds[$i]=$(echo $line | cut -f2 -d^)
-		expectedRC[$i]=$(echo $line | cut -f3 -d^)
+		returnTypes[$i]=$(echo $line | cut -f3 -d^)
+		expectedRC[$i]=$(echo $line | cut -f4 -d^)
+		printDebug "CMD: ${cmds[$i]}"
+		printDebug "       Return Type: ${returnTypes[$i]}"
+		printDebug "   Expected Return: ${expectedRC[$i]}"
 
 		(( i ++ ))
-	done < <( $jqBin -r '.tests[] | [.notes, .cmd, .result] | @csv' $unitTestJson | sed -e 's/"//g'  |  perl -ne ' my @a=split(/,/); print join(qq{^},@a)' )
+	#done < <( $jqBin -r '.tests[] | [.notes, .cmd, ."result-type", .result] | @csv' $unitTestJson | sed -e 's/"//g'  |  perl -ne ' my @a=split(/,/); print join(qq{^},@a)' )
+	done < <( ( eval $jqCmd $unitTestJson ) | sed -e 's/"//g'  |  perl -ne ' my @a=split(/,/); print join(qq{^},@a)' )
 
 else
 
@@ -400,9 +586,15 @@ else
 		#python -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['notes'])" < unit-test.jso
 		cmds[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['cmd'])" < $unitTestJson)
 		cmdMessages[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['notes'])" < $unitTestJson)
+		returnTypes[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['result-type'])" < $unitTestJson)
 		expectedRC[$i]=$($pythonBin -c "import sys, json; print(json.load(sys.stdin)['tests']["$i"]['result'])" < $unitTestJson)
+		printDebug "CMD: ${cmds[$i]}"
+		printDebug "       Return Type: ${returnTypes[$i]}"
+		printDebug "   Expected Return: ${expectedRC[$i]}"
 	done
 fi
+
+#exit
 
 
 # this cannot be set until previous loop completes
@@ -412,13 +604,38 @@ idxCount=${#cmds[@]}
 
 printDebug "idxCount: $idxCount"
 
+: << 'DEBUG-FLAG-TEST' 
+# test the enable/disable of debug
+enableDebug
+declare debugStateTest=$(getDebug)
+disableDebug
+
+echo Debug should be disabled
+if $(isDebugEnabled); then
+	echo "  Fail! - Debug is still enabled"
+else
+	echo "  Success - Debug is disabled"
+fi
+
+setDebug $debugStateTest
+
+echo Debug should be enabled
+if $(isDebugEnabled); then
+	echo "  Success - Debug is enabled"
+else
+	echo "  Fail! - Debug is still disabled"
+fi
+
+exit
+
+DEBUG-FLAG-TEST
 
 for i in $( seq 0 $idxCount)
 do
-	#echo "CMD $i: ${cmds[$i]}"
-	banner "${cmdMessages[$i]}"
-	run ${cmds[$i]}
-	tmpRC=$?
+	echo "CMD $i: ${cmds[$i]}"
+	banner "${returnTypes[$i]} | ${cmdMessages[$i]}"
+	tmpRC=$(run ${returnTypes[$i]} ${cmds[$i]} )
+	#tmpRC=$?
 
 	# if dryrun via dryRun=1 then set the return code to the expected value
 	if $(isExeEnabled); then
@@ -428,7 +645,27 @@ do
 		rc=expectedRC[$i]
 	fi
 
-	if [[ ${expectedRC[$i]} -ne $rc ]]; then
+	# change this to test expected outcome based on the return-type
+	#if [[ ${expectedRC[$i]} -ne $rc ]]; then
+
+	# trace the function that determines success or failure
+	if $(isDebugEnabled); then
+		printDebug "Execution State Test"
+		executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc
+	fi
+
+	# this next will not work if debug is enabled
+	# save the state and then re-enable
+	declare currDebugState=$(getDebug)
+	echo "currDebugState: |$currDebugState|"
+	disableDebug;
+
+	if $(executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]} $rc); then
+		printOK "OK: ${cmds[$i]}"
+		setDebug $currDebugState
+	else
+
+		setDebug $currDebugState
 
 		(( FAIL_COUNT++ ))
 		printTestError "Error encountered in ${cmds[$i]}\nExpected RC=${expectedRC[$i]} - Actual RC: $rc"
@@ -441,8 +678,6 @@ do
 		failedExpectedRC[$failedIDX]=${expectedRC[$i]}
 		failedActualRC[$failedIDX]=$rc
 
-	else
-		printOK "OK: ${cmds[$i]}"
 	fi
 
 done

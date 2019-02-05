@@ -144,14 +144,14 @@ setDebug () {
 	internalDebug=$1
 }
 
-redirectSTDIN () {
+redirectSTDOUT () {
 	# save old STDOUT
 	exec {channels[$stdoutSaveChannel]}>&"$STDOUT"
 	# redirect STDOUT to STDERR
 	exec {channels[$STDIN]}>&"$STDERR"
 }
 
-restoreSTDIN () {
+restoreSTDOUT () {
 	exec {channels[$STDIN]}>&"${channels[$stdoutSaveChannel]}"
 	exec {channels[$stdoutSaveChannel]}>&-
 
@@ -163,9 +163,9 @@ printDebug () {
 	if $(isDebugEnabled); then
 		if [[ $useColor -ne 0 ]]; then
 			# redirect this call to STDERR as all debug statements to go to STDERR
-			redirectSTDIN
+			redirectSTDOUT
 			colorPrint fg=lightYellow bg=blue msg="$msg"
-			restoreSTDIN
+			restoreSTDOUT
 		else
 			echo 1>&2 "$msg"
 		fi
@@ -249,9 +249,9 @@ printError () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
 
-		redirectSTDIN
+		redirectSTDOUT
 		colorPrint fg=red bg=lightGray msg="$msg"
-		restoreSTDIN
+		restoreSTDOUT
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -260,9 +260,9 @@ printError () {
 printErrorRpt () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		redirectSTDIN
+		redirectSTDOUT
 		colorPrint fg=black bg=yellow msg="$msg"
-		restoreSTDIN
+		restoreSTDOUT
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -271,9 +271,9 @@ printErrorRpt () {
 printTestError () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		redirectSTDIN
+		redirectSTDOUT
 		colorPrint fg=white bg=red msg="$msg"
-		restoreSTDIN
+		restoreSTDOUT
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -282,9 +282,9 @@ printTestError () {
 printOK () {
 	declare msg="$@"
 	if [[ $useColor -ne 0 ]]; then
-		redirectSTDIN
+		redirectSTDOUT
 		colorPrint fg=black bg=lightGreen msg="$msg"
-		restoreSTDIN
+		restoreSTDOUT
 	else
 		echo 1>&2 "$msg"
 	fi
@@ -301,9 +301,9 @@ printMsg () {
 		# output
 		# for some reason using the functions to do the redirect break the code in run() when it calls printMsg()
 		# do not yet know why - not using printMsg there for now
-		redirectSTDIN
+		redirectSTDOUT
 		colorPrint fg=black bg=cyan msg="$msg"
-		restoreSTDIN
+		restoreSTDOUT
 		# restore STDOUT and close 7
 		#exec 1>&7 7>&-
 	else
@@ -455,7 +455,7 @@ run () {
 		# eval "x=1 ls" - this does work
 
 		# do not use printMsg in this code
-		# the calls to redirectSTDIN and restoreSTDIN that are in printMsg() cause this to break
+		# the calls to redirectSTDOUT and restoreSTDOUT that are in printMsg() cause this to break
 		#printMsg "arg type: $returnType"
 		echo 1>&2 "arg type: $returnType"
 

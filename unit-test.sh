@@ -446,43 +446,52 @@ executionSucceeded () {
 	declare returnType=$1
 	# quotes required as the values may have multiple words
 	declare expectedVal="$2"
-	declare actualVal="$3"
+
+	# var reference name - bash 4.3+
+	declare -n actualValArray
+	declare actualVal
 
 	printDebug "====  executionSucceeded ===="
 	printDebug "returnType: $returnType"
 	printDebug "expectedVal: $expectedVal"
-	printDebug "actualVal: $actualVal"
+	
 
 	declare retval=$funcFailRetval # default is fail ( 0 is success )
-	declare actualType
-
-	# is it a number?
-	declare actualValIsNumber='N';
-
-	if [[ $actualVal =~ ^[[:digit:]]+ ]]; then
-		actualValIsNumber='Y'
-	fi
-	printDebug "is number: $actualValIsNumber"
 
 	if [[ $returnType = 'string' ]]; then
 
-		if [[ "$actualVal" == "$expectedVal" ]]; then
-			retval=$funcSuccessRetval
-		else
-			retval=$funcFailRetval
-		fi
+		actualValArray=$3
+
+		maxEl=${#actualValArray[@]}
+		(( maxEl-- ))
+
+		# read backwards as the string to match is likely near the end
+		for i in $(seq $maxEl -1 0)
+		do
+			# this echo will cause an error if trying to capture the returncode
+			#echo "i: " ${actualValArray[$i]}
+			
+			[[ "${actualValArray[$i]}" =~ ^$expectedVal$ ]] && {
+				retval=$funcSuccessRetval
+				break
+			}
+		done
 	
 	else # numeric
-		if [[ $actualValIsNumber == 'Y' ]]; then
+
+		# is it a number?	
+		actualVal=$3
+
+		printDebug "actualVal: $actualVal"
+
+		if [[ $actualVal =~ ^[[:digit:]]+ ]]; then
 			if [[ $actualVal -eq $expectedVal ]]; then
 				retval=$funcSuccessRetval
-			else
-				retval=$funcFailRetval
 			fi
 		else
 			printError "Expected a Numeric return of "$expectedVal" but got "$actualVal" instead"
-			retval=$funcFailRetval
 		fi
+
 	fi
 
 	return $retval
@@ -490,15 +499,38 @@ executionSucceeded () {
 
 # always echo the return value for consistency
 
-run () {
-	declare returnType=$1
-	shift
-	declare cmd="$*"
+: << 'rundoc'
 
+when the called program is checked via text outut (string)
+
+  run 'string' array_name cmdtext
+
+when the called program is checked via integer return code
+
+run 'integer' cmdtext
+
+rundoc
+
+run () {
+
+	#echo 1>&2 "All Args: $@"
+	declare returnType=$1
+	#echo 1>&2 "1: $1"
+	shift
+	#echo 1>&2 "1: $1"
+	# passed by reference
+	declare -n txtAry
+	if [[ $returnType == 'string' ]]; then
+		txtAry=$1
+		#echo 1>&2 "txtAry: $txtAry"
+		shift
+	fi
+
+	declare cmd="$@"
 	declare retval
 
-	#echo 1>&2 "CMD: $cmd"
-	#echo 1>&2 "Return Type: $returnType"
+	echo 1>&2 "CMD: $cmd"
+	echo 1>&2 "Return Type: $returnType"
 
 	if $(isExeEnabled); then
 		#echo "CMD is Enabled"
@@ -509,16 +541,23 @@ run () {
 		# "x=1 ls" - does not work
 		# eval "x=1 ls" - this does work
 
-		printMsg "arg type: $returnType"
+		#printMsg "arg type: $returnType"
 
 		if [[ $returnType == 'string' ]]; then
 			echo 1>&2 "Evaluating string"
 			# using a loop in the event the test script emits many lines
 			# get the final line as the return value
+			declare i=0
 			while read line
 			do
-				retval=$line
+				txtAry[$i]="$line"
+				(( i++ ))
+				retval="$line"
 			done < <( eval "$cmd" )
+
+			echo 1>&2 "txtAry: ${txtAry[@]}"
+			echo 1>&2 "new cmdOutput: ${cmdOutput[@]}"
+			cmdOutput=("${txtAry[@]}")
 		else
 			printMsg "Evaluating integer"
 			eval 1>&2 "$cmd"
@@ -702,8 +741,22 @@ for i in $( seq 0 $idxCount)
 do
 	echo "CMD $i: ${cmds[$i]}"
 	banner "${returnTypes[$i]} | ${cmdMessages[$i]}"
-	tmpRC=$(run ${returnTypes[$i]} ${cmds[$i]} )
+	#declare -a cmdOutput
+	cmdOutput[0]='initialize'
+	
+	#echo 1>&2 "return type: $returnTypes[$i]"
+
+	if [[ ${returnTypes[$i]} == 'string' ]]; then
+		#echo 1>&2 calling "string: run ${returnTypes[$i]} 'cmdOutput' ${cmds[$i]} )"
+		run "${returnTypes[$i]}" cmdOutput ${cmds[$i]}
+		tmpRC=$?
+	else
+		#echo 1>&2 calling "integer: run ${returnTypes[$i]} ${cmds[$i]}"
+		tmpRC=$(run ${returnTypes[$i]} ${cmds[$i]} )
+	fi
 	#tmpRC=$?
+
+	echo 1>&2 "cmdOutput: ${cmdOutput[@]}"
 
 	# if dryrun via dryRun=1 then set the return code to the expected value
 	if $(isExeEnabled); then
@@ -721,7 +774,12 @@ do
 	if $(isDebugEnabled); then
 		printDebug "==>> Execution State Test"
 		# quotes required as the values may have multiple words
-		executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"
+		#executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"
+		if [[ ${returnTypes[$i]} == 'string' ]]; then
+			resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" cmdOutput)
+		else
+			resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc")
+		fi		
 	fi
 
 	# this next will not work if debug is enabled
@@ -731,7 +789,13 @@ do
 	disableDebug;
 
 	# quotes required as the values may have multiple words
-	if $(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"); then
+	if [[ ${returnTypes[$i]} == 'string' ]]; then
+		resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" cmdOutput)
+	else
+		resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc")
+	fi
+
+	if $(exit $resultCode); then
 		printOK "OK: ${cmds[$i]}"
 		setDebug $currDebugState
 	else

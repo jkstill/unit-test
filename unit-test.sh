@@ -357,13 +357,13 @@ printOK () {
 
 printMsg () {
 	declare msg="$@"
+	redirectSTDOUT
 	if [[ $useColor -ne 0 ]]; then
-		redirectSTDOUT
 		colorPrint fg=black bg=cyan msg="$msg"
-		restoreSTDOUT
 	else
-		echo 1>&2 "$msg"
+		echo "$msg"
 	fi
+	restoreSTDOUT
 }
 
 
@@ -468,8 +468,7 @@ executionSucceeded () {
 		# read backwards as the string to match is likely near the end
 		for i in $(seq $maxEl -1 0)
 		do
-			# this echo will cause an error if trying to capture the returncode
-			#echo "i: " ${actualValArray[$i]}
+			echo 1>&2 "$i: " ${actualValArray[$i]}
 			
 			[[ "${actualValArray[$i]}" =~ ^$expectedVal$ ]] && {
 				retval=$funcSuccessRetval
@@ -503,7 +502,7 @@ executionSucceeded () {
 
 when the called program is checked via text outut (string)
 
-  run 'string' array_name cmdtext
+  run 'string' array_name expectedResult cmdtext 
 
 when the called program is checked via integer return code
 
@@ -520,17 +519,21 @@ run () {
 	#echo 1>&2 "1: $1"
 	# passed by reference
 	declare -n txtAry
+	declare expectedResult
 	if [[ $returnType == 'string' ]]; then
 		txtAry=$1
+		shift;
+		expectedResult=$1
 		#echo 1>&2 "txtAry: $txtAry"
-		shift
 	fi
+	shift
 
 	declare cmd="$@"
 	declare retval
 
-	echo 1>&2 "CMD: $cmd"
-	echo 1>&2 "Return Type: $returnType"
+	#echo 1>&2 "CMD: $cmd"
+	#echo 1>&2 "Return Type: $returnType"
+	#echo 1>&2 "Expected Result: $expectedResult"
 
 	if $(isExeEnabled); then
 		#echo "CMD is Enabled"
@@ -544,7 +547,8 @@ run () {
 		#printMsg "arg type: $returnType"
 
 		if [[ $returnType == 'string' ]]; then
-			echo 1>&2 "Evaluating string"
+			retval='NA'
+			#echo 1>&2 "Evaluating string"
 			# using a loop in the event the test script emits many lines
 			# get the final line as the return value
 			declare i=0
@@ -552,12 +556,23 @@ run () {
 			do
 				txtAry[$i]="$line"
 				(( i++ ))
-				retval="$line"
+				#retval="$line"
 			done < <( eval "$cmd" )
 
-			echo 1>&2 "txtAry: ${txtAry[@]}"
-			echo 1>&2 "new cmdOutput: ${cmdOutput[@]}"
-			cmdOutput=("${txtAry[@]}")
+			declare finalTxtEl=${#txtAry[@]}
+			(( finalTxtEl-- ))
+			printMsg "finalTxtEl: $finalTxtEl"
+			for i in $( seq $finalTxtEl -1 0 )
+			do
+				echo 1>&2 "txtAry line $i: looking for $expectedResult in  ${txtAry[$i]}"
+				if [[ ${txtAry[$i]} =~ $expectedResult ]]; then
+					printMsg '!! Found IT!'
+					retval=${txtAry[$i]}
+					break
+				else
+					printMsg '!! Did NOT Find It!'
+				fi
+			done
 		else
 			printMsg "Evaluating integer"
 			eval 1>&2 "$cmd"
@@ -746,15 +761,24 @@ do
 	
 	#echo 1>&2 "return type: $returnTypes[$i]"
 
+: << 'RUN-RETURN-VALUE'
+
+To simplify the code for run(), the return value for any scripts under test is returned via 'echo', not via 'return'
+
+That is why the following has two slightly different methods of getting return values, as one returns an integer,
+and the other returns an unknown amount of text.
+
+RUN-RETURN-VALUE
+
+
 	if [[ ${returnTypes[$i]} == 'string' ]]; then
 		#echo 1>&2 calling "string: run ${returnTypes[$i]} 'cmdOutput' ${cmds[$i]} )"
-		run "${returnTypes[$i]}" cmdOutput ${cmds[$i]}
-		tmpRC=$?
+		tmpRC=$(run "${returnTypes[$i]}" cmdOutput ${expectedRC[$i]} ${cmds[$i]})
+		#tmpRC=$?
 	else
 		#echo 1>&2 calling "integer: run ${returnTypes[$i]} ${cmds[$i]}"
-		tmpRC=$(run ${returnTypes[$i]} ${cmds[$i]} )
+		tmpRC=$(run ${returnTypes[$i]} cmdOutput ${cmds[$i]} )
 	fi
-	#tmpRC=$?
 
 	echo 1>&2 "cmdOutput: ${cmdOutput[@]}"
 
@@ -784,9 +808,9 @@ do
 
 	# this next will not work if debug is enabled
 	# save the state and then re-enable
-	declare currDebugState=$(getDebug)
+	#declare currDebugState=$(getDebug)
 	#printMsg "currDebugState: |$currDebugState|"
-	disableDebug;
+	#disableDebug;
 
 	# quotes required as the values may have multiple words
 	if [[ ${returnTypes[$i]} == 'string' ]]; then
@@ -797,10 +821,10 @@ do
 
 	if $(exit $resultCode); then
 		printOK "OK: ${cmds[$i]}"
-		setDebug $currDebugState
+		#setDebug $currDebugState
 	else
 
-		setDebug $currDebugState
+		#setDebug $currDebugState
 
 		(( FAIL_COUNT++ ))
 		printTestError "Error encountered in ${cmds[$i]}\nExpected RC=|${expectedRC[$i]}| - Actual RC: |$rc|"

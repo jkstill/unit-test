@@ -6,6 +6,68 @@ set -u
 
 source ./ansi-color.sh
 
+###################################
+# stuff that needs to be at the top
+###################################
+
+declare -A globals
+# define but do not initialize
+
+globals[internalDebug]=''
+globals[isJQEnabled]=''
+globals[forcePython]=''
+globals[isExeEnabled]=''
+
+: << 'BOOLEANS'
+
+Shell expects the return of a command to be 0 if successful
+
+Variables are often set to 1 to enable a feature, or 0 to disable
+
+Testing variables and results can be confusing.
+
+The use of booleans may help mitigate that - it is worth testing at least
+
+setBoolConf can be used to set configuration values to true or false for those that enable/disable a feature
+
+if the variable is 1, set true
+
+if the variable is not 1, set false
+
+BOOLEANS
+
+setBoolConf () {
+	declare var2set=$1
+	declare val2set=$2
+
+	#echo "setBoolConf DEBUG var2set: $var2set"
+	#echo "setBoolConf DEBUG val2set: $val2set"
+
+	declare internalBool
+
+	[[ $val2set -eq 1 ]] && internalBool=true || internalBool=false
+
+	#echo "setBoolConf DEBUG internalBool: $internalBool"
+
+	printf -v $var2set $internalBool
+
+}
+
+# for negative logic vars
+setBoolConfReverse () {
+
+	declare var2set=$1
+	declare val2set=$2
+
+	if [[ $val2set -eq 0 ]]; then
+		val2set=1
+	else
+		val2set=0
+	fi
+
+	setBoolConf $var2set $val2set
+}
+
 ##############################
 # Variables that can be 
 # controlled from CLI
@@ -16,14 +78,7 @@ source ./ansi-color.sh
 # use debug=1 on CLI to enable
 ##############################
 declare debug=${debug:-0}
-
-declare internalDebug
-
-if [[ $debug -eq 0 ]]; then
-	internalDebug=1
-else
-	internalDebug=0
-fi
+setBoolConf globals[internalDebug] $debug
 
 #####################
 # print help
@@ -42,6 +97,7 @@ declare useColor=${useColor:-1}
 # this can force the use of Python
 ###############################################
 declare usePython=${usePython:-0}
+setBoolConf globals[forcePython] $usePython
 
 ####################################
 # enable for timestamped log files
@@ -63,7 +119,8 @@ declare logFile=$(echo $unitTestJson | cut -f1 -d\.)
 # display commands but do not execute
 #########################################
 declare dryRun=${dryRun:-0}
-
+setBoolConfReverse globals[isExeEnabled] $dryRun
+# echo "exe enabled: ${globals[isExeEnabled]}"
 
 #########################################
 # other global vars
@@ -91,6 +148,9 @@ declare jqLastEl=${#jqColumns[@]}
 # values that functions return for success/failure
 declare funcSuccessRetval=0
 declare funcFailRetval=1
+
+declare boolSuccessRetval=true
+declare boolFailRetval=false
 
 # channel where STDOUT is saved
 : << 'COMMENT'
@@ -155,27 +215,23 @@ shell return values are the opposite
 
 COMMENT
 
-isDebugEnabled () {
-	return $internalDebug
-}
-
 disableDebug () {
-	internalDebug=$funcFailRetval
+	globals[internalDebug]=$boolFailRetval
 }
 
 enableDebug () {
-	internalDebug=$funcSuccessRetval
+	globals[internalDebug]=$boolSuccessRetval
 }
 
 ## use the actual values, not the logical ones
 ## used for getting/setting state such as when we do not want debug to run
 
 getDebug () {
-	echo $internalDebug
+	echo ${globals[internalDebug]}
 }
 
 setDebug () {
-	internalDebug=$1
+	globals[internalDebug]=$1
 }
 
 : << 'COMMENT'
@@ -225,7 +281,7 @@ restoreSTDOUT () {
 printDebug () {
 	declare msg="$@"
 
-	if $(isDebugEnabled); then
+	if [[ ${globals[internalDebug]} == true ]]; then
 		if [[ $useColor -ne 0 ]]; then
 			# redirect this call to STDERR as all debug statements to go to STDERR
 			redirectSTDOUT
@@ -285,30 +341,16 @@ jqBin=$(which jq)
 pythonBin=$(which python)
 
 declare jqVersion=$($jqBin --version 2>/dev/null)
-declare useJQ=1
+globals[isJQEnabled]=false
 printDebug "jqVersion: $jqVersion"
 
-if [[ -n $jqVersion ]]; then
-	useJQ=0
+#echo "forcePython: ${globals[forcePython]}"
+
+if [[ -n $jqVersion && ${globals[forcePython]} == false ]]; then
+	globals[isJQEnabled]=true
 fi
 
-printDebug "useJQ: $useJQ"
-
-forcePython () {
-	if [[ $usePython -eq 0 ]]; then
-		return $funcFailRetval; # false
-	else
-		return $funcSuccessRetval; # true
-	fi
-}
-
-isJQEnabled () {
-	if $(forcePython); then
-		return $funcFailRetval; # false
-	else
-		return $useJQ
-	fi
-}
+printDebug "useJQ: ${globals[isJQEnabled]}"
 
 printError () {
 	declare msg="$@"
@@ -367,7 +409,7 @@ printMsg () {
 }
 
 
-if $(isDebugEnabled); then
+if [[ ${globals[internalDebug]} == true ]]; then
 	echo "Log File: $logFile"
 	echo "Unit Test: $unitTestJson"
 	#exit
@@ -382,7 +424,8 @@ fi
 }
 
 # test the JSON file to be at least syntactically correct
-if $(isJQEnabled); then
+#if $(isJQEnabled); then
+if [[ ${globals[isJQEnabled]} == true ]]; then
 	printDebug "parsing JSON with JQ"
 	[[ -x $jqBin ]] || {
 		echo
@@ -424,25 +467,16 @@ banner () {
 }
 
 exeEnable () {
-	exeEnabled=0
+	globals[isExeEnabled]=$boolSuccessRetval
 }
 
 exeDisable () {
-	exeEnabled=1
+	globals[isExeEnabled]=$boolFailRetval
 }
-
-isExeEnabled () {
-	return $exeEnabled
-}
-
-exeEnable
-if [[ $dryRun -ne 0 ]]; then
-	exeDisable
-fi
 
 executionSucceeded () {
 
-	if $(isDebugEnabled); then
+	if [[ ${globals[internalDebug]} == true ]]; then
 		printMsg "all args: $*"
 	fi
 
@@ -524,7 +558,8 @@ run () {
 	echo 1>&2 "Return Var: $retVar"
 	echo 1>&2 "Expected Result: $expectedResult"
 
-	if $(isExeEnabled); then
+	#if $(isExeEnabled); then
+	if [[ ${globals[isExeEnabled]} == true ]]; then
 		#echo "CMD is Enabled"
 
 		# eval "$cmd" is used as some commands take this form
@@ -665,7 +700,8 @@ jqCmd="$jqCmd $jqColumnList ] | @csv' "
 
 printDebug jqCmd: $jqCmd
 
-if $(isJQEnabled); then
+#if $(isJQEnabled); then
+if [[ ${globals[isJQEnabled]} == true ]]; then
 
 	# separated with ^ to avoid possible issues with commas in data
 	declare i=0
@@ -724,7 +760,7 @@ declare debugStateTest=$(getDebug)
 disableDebug
 
 echo Debug should be disabled
-if $(isDebugEnabled); then
+if [[ ${globals[internalDebug]} == true ]]; then
 	echo "  Fail! - Debug is still enabled"
 else
 	echo "  Success - Debug is disabled"
@@ -733,7 +769,7 @@ fi
 setDebug $debugStateTest
 
 echo Debug should be enabled
-if $(isDebugEnabled); then
+if [[ ${globals[internalDebug]} == true ]]; then
 	echo "  Success - Debug is enabled"
 else
 	echo "  Fail! - Debug is still disabled"
@@ -743,9 +779,6 @@ exit
 
 DEBUG-FLAG-TEST
 
-declare cmdExeEnabled
-isExeEnabled
-cmdExeEnabled=$?
 
 declare scriptRC
 declare rc
@@ -757,19 +790,18 @@ do
 	declare -a cmdOutput
 	cmdOutput[0]='initialize'
 	
-	#echo 1>&2 "return type: $returnTypes[$i]"
 	
-	if [[ $cmdExeEnabled -eq 0 ]]; then
-		#if [[ ${returnTypes[$i]} == 'string' ]]; then
-			#echo 1>&2 calling "string: run ${returnTypes[$i]} 'cmdOutput' ${cmds[$i]} )"
-  			run "${returnTypes[$i]}" cmdOutput "${expectedRC[$i]}" scriptRC "${cmds[$i]}"
-			printDebug "rc called run(): $scriptRC"
-			rc=$scriptRC
-	fi
+	# run() will check if command execution is enabled
+	# if not then all that run() will do is print the command
+  	run "${returnTypes[$i]}" cmdOutput "${expectedRC[$i]}" scriptRC "${cmds[$i]}"
+	printDebug "rc called run(): $scriptRC"
+	rc=$scriptRC
+
 	printDebug "RC: $rc"
 
 	# quotes required as the values may have multiple words
-	if [[ $cmdExeEnabled -eq 0   ]]; then
+	#if [[ $cmdExeEnabled -eq 0   ]]; then
+	if [[ ${globals[isExeEnabled]} == true ]]; then
 		if [[ ${returnTypes[$i]} == 'string' ]]; then
 			resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" cmdOutput)
 		else
@@ -806,7 +838,8 @@ done
 
 echo
 
-if [[ ( $cmdExeEnabled -eq 0 )  && ( $FAIL_COUNT -gt 0 ) ]]; then
+#if [[ ( $cmdExeEnabled -eq 0 )  && ( $FAIL_COUNT -gt 0 ) ]]; then
+if [[ ${globals[isExeEnabled]} == true  && ( $FAIL_COUNT -gt 0 ) ]]; then
 
 	failedCount=${#failedCMD[@]}
 

@@ -52,6 +52,12 @@
 			"result" : "Error"
 		},
 		{
+			"notes" : "string return type with multiple lines of output - successful execution of failure with error",
+			"cmd" : "./script-under-test-multi-string.sh Error",
+			"result-type" : "string",
+			"result" : "Error"
+		},
+		{
 			"notes" : "This test should FAIL - string return type - failed execution - expecting Error - gets OK",
 			"cmd" : "./script-under-test-string.sh OK",
 			"result-type" : "string",

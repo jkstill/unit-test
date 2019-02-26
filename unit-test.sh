@@ -357,13 +357,13 @@ printOK () {
 
 printMsg () {
 	declare msg="$@"
+	redirectSTDOUT
 	if [[ $useColor -ne 0 ]]; then
-		redirectSTDOUT
 		colorPrint fg=black bg=cyan msg="$msg"
-		restoreSTDOUT
 	else
-		echo 1>&2 "$msg"
+		echo "$msg"
 	fi
+	restoreSTDOUT
 }
 
 
@@ -435,7 +435,10 @@ isExeEnabled () {
 	return $exeEnabled
 }
 
-# if $(executionSucceeded ${returnTypes[$i]} ${expectedRC[$i]}); then
+exeEnable
+if [[ $dryRun -ne 0 ]]; then
+	exeDisable
+fi
 
 executionSucceeded () {
 
@@ -446,59 +449,80 @@ executionSucceeded () {
 	declare returnType=$1
 	# quotes required as the values may have multiple words
 	declare expectedVal="$2"
-	declare actualVal="$3"
+
+	# var reference name - bash 4.3+
+	declare -n actualValArray
+	declare actualVal
 
 	printDebug "====  executionSucceeded ===="
 	printDebug "returnType: $returnType"
 	printDebug "expectedVal: $expectedVal"
-	printDebug "actualVal: $actualVal"
+	
 
 	declare retval=$funcFailRetval # default is fail ( 0 is success )
-	declare actualType
 
-	# is it a number?
-	declare actualValIsNumber='N';
+	if [[ $returnType == 'string' ]]; then
 
-	if [[ $actualVal =~ ^[[:digit:]]+ ]]; then
-		actualValIsNumber='Y'
-	fi
-	printDebug "is number: $actualValIsNumber"
+		actualValArray=$3
 
-	if [[ $returnType = 'string' ]]; then
+		maxEl=${#actualValArray[@]}
+		(( maxEl-- ))
 
-		if [[ "$actualVal" == "$expectedVal" ]]; then
-			retval=$funcSuccessRetval
-		else
-			retval=$funcFailRetval
-		fi
+		# read backwards as the string to match is likely near the end
+		for i in $(seq $maxEl -1 0)
+		do
+			printDebug "actualVal string $i: " ${actualValArray[$i]}
+			
+			[[ "${actualValArray[$i]}" =~ ^$expectedVal$ ]] && {
+				retval=$funcSuccessRetval
+				break
+			}
+		done
 	
 	else # numeric
-		if [[ $actualValIsNumber == 'Y' ]]; then
+
+		# is it a number?	
+		actualVal=$3
+
+		printDebug "actualVal integer: $actualVal"
+
+		if [[ $actualVal =~ ^[[:digit:]]+ ]]; then
 			if [[ $actualVal -eq $expectedVal ]]; then
 				retval=$funcSuccessRetval
-			else
-				retval=$funcFailRetval
 			fi
 		else
 			printError "Expected a Numeric return of "$expectedVal" but got "$actualVal" instead"
-			retval=$funcFailRetval
 		fi
+
 	fi
 
 	return $retval
 }
 
-# always echo the return value for consistency
+: << 'rundoc'
+
+  run 'string|integer' array_name expectedResult retVar cmdtext 
+
+  run "${returnTypes[$i]}" cmdOutput "${expectedRC[$i]}" retVar "${cmds[$i]}"
+
+
+rundoc
 
 run () {
-	declare returnType=$1
-	shift
-	declare cmd="$*"
+
+	declare returnType=$1; shift
+	# passed by reference
+	declare -n txtAry=$1; shift
+	declare expectedResult=$1; shift
+	declare retVar=$1; shift
+	declare cmd="$@"
 
 	declare retval
 
-	#echo 1>&2 "CMD: $cmd"
-	#echo 1>&2 "Return Type: $returnType"
+	echo 1>&2 "CMD: $cmd"
+	echo 1>&2 "Return Type: $returnType"
+	echo 1>&2 "Return Var: $retVar"
+	echo 1>&2 "Expected Result: $expectedResult"
 
 	if $(isExeEnabled); then
 		#echo "CMD is Enabled"
@@ -509,33 +533,50 @@ run () {
 		# "x=1 ls" - does not work
 		# eval "x=1 ls" - this does work
 
-		printMsg "arg type: $returnType"
+		#printMsg "arg type: $returnType"
 
 		if [[ $returnType == 'string' ]]; then
-			echo 1>&2 "Evaluating string"
+			retval='NA'
+			#echo 1>&2 "Evaluating string"
 			# using a loop in the event the test script emits many lines
 			# get the final line as the return value
+			declare i=0
 			while read line
 			do
-				retval=$line
+				txtAry[$i]="$line"
+				(( i++ ))
+				#retval="$line"
 			done < <( eval "$cmd" )
+
+			declare finalTxtEl=${#txtAry[@]}
+			(( finalTxtEl-- ))
+			printDebug "finalTxtEl: $finalTxtEl"
+			for i in $( seq $finalTxtEl -1 0 )
+			do
+				printDebug "txtAry line $i: looking for $expectedResult in  ${txtAry[$i]}"
+				if [[ ${txtAry[$i]} =~ $expectedResult ]]; then
+					printDebug "!! Found IT! ${txtAry[$i]}"
+					retval=${txtAry[$i]}
+					printDebug "!! retval: $retval! "
+					break
+				else
+					printDebug '!! Did NOT Find It!'
+				fi
+			done
 		else
-			printMsg "Evaluating integer"
+			printDebug "Evaluating integer"
 			eval 1>&2 "$cmd"
 			retval=$?
+			echo 1>&2 "run() retval: $retval"
 		fi
 	else
 		#echo 1>&2 "CMD is Disabled"
 		retval='Command Execution Disabled'
 	fi
 
-	echo $retval
+	printf -v $retVar $retval
+	printDebug "retVar run(): $retVar"
 }
-
-exeEnable
-if [[ $dryRun -ne 0 ]]; then
-	exeDisable
-fi
 
 ##############################
 # variable declarations
@@ -631,6 +672,8 @@ if $(isJQEnabled); then
 
 	# using this method of reading input stores entire line in the 'line' variable
 	# the from of 'for line in $(do something)' causes IFS to store only the first space-separated word
+	printDebug ""
+
 	while read line
 	do
 
@@ -642,6 +685,7 @@ if $(isJQEnabled); then
 		printDebug "CMD: ${cmds[$i]}"
 		printDebug "       Return Type: ${returnTypes[$i]}"
 		printDebug "   Expected Return: ${expectedRC[$i]}"
+		printDebug ""
 
 		(( i ++ ))
 	#done < <( $jqBin -r '.tests[] | [.notes, .cmd, ."result-type", .result] | @csv' $unitTestJson | sed -e 's/"//g'  |  perl -ne ' my @a=split(/,/); print join(qq{^},@a)' )
@@ -659,6 +703,7 @@ else
 		printDebug "CMD: ${cmds[$i]}"
 		printDebug "       Return Type: ${returnTypes[$i]}"
 		printDebug "   Expected Return: ${expectedRC[$i]}"
+		printDebug ""
 	done
 fi
 
@@ -698,64 +743,70 @@ exit
 
 DEBUG-FLAG-TEST
 
+declare cmdExeEnabled
+isExeEnabled
+cmdExeEnabled=$?
+
+declare scriptRC
+declare rc
+
 for i in $( seq 0 $idxCount)
 do
-	echo "CMD $i: ${cmds[$i]}"
+	banner "CMD $i: ${cmds[$i]}"
 	banner "${returnTypes[$i]} | ${cmdMessages[$i]}"
-	tmpRC=$(run ${returnTypes[$i]} ${cmds[$i]} )
-	#tmpRC=$?
-
-	# if dryrun via dryRun=1 then set the return code to the expected value
-	if $(isExeEnabled); then
-		printDebug "Setting rc = $tmpRC"
-		rc=$tmpRC
-	else
-		rc=${expectedRC[$i]}
+	declare -a cmdOutput
+	cmdOutput[0]='initialize'
+	
+	#echo 1>&2 "return type: $returnTypes[$i]"
+	
+	if [[ $cmdExeEnabled -eq 0 ]]; then
+		#if [[ ${returnTypes[$i]} == 'string' ]]; then
+			#echo 1>&2 calling "string: run ${returnTypes[$i]} 'cmdOutput' ${cmds[$i]} )"
+  			run "${returnTypes[$i]}" cmdOutput "${expectedRC[$i]}" scriptRC "${cmds[$i]}"
+			printDebug "rc called run(): $scriptRC"
+			rc=$scriptRC
 	fi
-	#echo "RC: $rc"
-
-	# change this to test expected outcome based on the return-type
-	#if [[ ${expectedRC[$i]} -ne $rc ]]; then
-
-	# trace the function that determines success or failure
-	if $(isDebugEnabled); then
-		printDebug "==>> Execution State Test"
-		# quotes required as the values may have multiple words
-		executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"
-	fi
-
-	# this next will not work if debug is enabled
-	# save the state and then re-enable
-	declare currDebugState=$(getDebug)
-	#printMsg "currDebugState: |$currDebugState|"
-	disableDebug;
+	printDebug "RC: $rc"
 
 	# quotes required as the values may have multiple words
-	if $(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc"); then
-		printOK "OK: ${cmds[$i]}"
-		setDebug $currDebugState
+	if [[ $cmdExeEnabled -eq 0   ]]; then
+		if [[ ${returnTypes[$i]} == 'string' ]]; then
+			resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" cmdOutput)
+		else
+			resultCode=$(executionSucceeded ${returnTypes[$i]} "${expectedRC[$i]}" "$rc")
+		fi
+
+			if $(exit $resultCode); then
+				printOK "OK: ${cmds[$i]}"
+				#setDebug $currDebugState
+			else
+
+				#setDebug $currDebugState
+				printDebug "resultCode: $resultCode" 
+
+				(( FAIL_COUNT++ ))
+				printTestError "Error encountered in ${cmds[$i]}\nExpected RC=|${expectedRC[$i]}| - Actual RC: |$rc|"
+
+				# pushed fail info to arrays
+				(( failedIDX++ ))
+
+				failedCMD[$failedIDX]=${cmds[$i]}
+				failedTest[$failedIDX]=${cmdMessages[$i]}
+				failedExpectedRC[$failedIDX]=${expectedRC[$i]}
+				failedActualRC[$failedIDX]=$rc
+
+			fi
+
+
 	else
-
-		setDebug $currDebugState
-
-		(( FAIL_COUNT++ ))
-		printTestError "Error encountered in ${cmds[$i]}\nExpected RC=|${expectedRC[$i]}| - Actual RC: |$rc|"
-
-		# pushed fail info to arrays
-		(( failedIDX++ ))
-
-		failedCMD[$failedIDX]=${cmds[$i]}
-		failedTest[$failedIDX]=${cmdMessages[$i]}
-		failedExpectedRC[$failedIDX]=${expectedRC[$i]}
-		failedActualRC[$failedIDX]=$rc
-
+		resultCode=0
 	fi
 
 done
 
 echo
 
-if [[ $FAIL_COUNT -gt 0 ]]; then
+if [[ ( $cmdExeEnabled -eq 0 )  && ( $FAIL_COUNT -gt 0 ) ]]; then
 
 	failedCount=${#failedCMD[@]}
 
@@ -786,6 +837,7 @@ if [[ $FAIL_COUNT -gt 0 ]]; then
 
 else 
 	printOK "All Tests Passed!"
+#fi
 fi
 
 echo

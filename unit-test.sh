@@ -6,6 +6,50 @@ set -u
 
 source ./ansi-color.sh
 
+###################################
+# stuff that needs to be at the top
+###################################
+
+declare -A globals
+# define but do not initialize
+
+globals[internalDebug]=''
+
+: << 'BOOLEANS'
+
+Shell expects the return of a command to be 0 if successful
+
+Variables are often set to 1 to enable a feature, or 0 to disable
+
+Testing variables and results can be confusing.
+
+The use of booleans may help mitigate that - it is worth testing at least
+
+setBoolConf can be used to set configuration values to true or false for those that enable/disable a feature
+
+if the variable is 1, set true
+
+if the variable is not 1, set false
+
+BOOLEANS
+
+setBoolConf () {
+	declare var2set=$1
+	declare val2set=$2
+
+	#echo "setBoolConf DEBUG var2set: $var2set"
+	#echo "setBoolConf DEBUG val2set: $val2set"
+
+	declare internalBool
+
+	[[ $val2set -eq 1 ]] && internalBool=true || internalBool=false
+
+	#echo "setBoolConf DEBUG internalBool: $internalBool"
+
+	printf -v $var2set $internalBool
+
+}
+
 ##############################
 # Variables that can be 
 # controlled from CLI
@@ -16,14 +60,13 @@ source ./ansi-color.sh
 # use debug=1 on CLI to enable
 ##############################
 declare debug=${debug:-0}
+setBoolConf globals[internalDebug] $debug
 
-declare internalDebug
-
-if [[ $debug -eq 0 ]]; then
-	internalDebug=1
-else
-	internalDebug=0
-fi
+#if [[ $debug -eq 0 ]]; then
+	#internalDebug=1
+#else
+	#internalDebug=0
+#fi
 
 #####################
 # print help
@@ -92,6 +135,9 @@ declare jqLastEl=${#jqColumns[@]}
 declare funcSuccessRetval=0
 declare funcFailRetval=1
 
+declare boolSuccessRetval=true
+declare boolFailRetval=false
+
 # channel where STDOUT is saved
 : << 'COMMENT'
 
@@ -155,27 +201,23 @@ shell return values are the opposite
 
 COMMENT
 
-isDebugEnabled () {
-	return $internalDebug
-}
-
 disableDebug () {
-	internalDebug=$funcFailRetval
+	globals[internalDebug]=$boolFailRetval
 }
 
 enableDebug () {
-	internalDebug=$funcSuccessRetval
+	globals[internalDebug]=$boolSuccessRetval
 }
 
 ## use the actual values, not the logical ones
 ## used for getting/setting state such as when we do not want debug to run
 
 getDebug () {
-	echo $internalDebug
+	echo ${globals[internalDebug]}
 }
 
 setDebug () {
-	internalDebug=$1
+	globals[internalDebug]=$1
 }
 
 : << 'COMMENT'
@@ -225,7 +267,7 @@ restoreSTDOUT () {
 printDebug () {
 	declare msg="$@"
 
-	if $(isDebugEnabled); then
+	if [[ ${globals[internalDebug]} == true ]]; then
 		if [[ $useColor -ne 0 ]]; then
 			# redirect this call to STDERR as all debug statements to go to STDERR
 			redirectSTDOUT
@@ -367,7 +409,7 @@ printMsg () {
 }
 
 
-if $(isDebugEnabled); then
+if [[ ${globals[internalDebug]} == true ]]; then
 	echo "Log File: $logFile"
 	echo "Unit Test: $unitTestJson"
 	#exit
@@ -442,7 +484,7 @@ fi
 
 executionSucceeded () {
 
-	if $(isDebugEnabled); then
+	if [[ ${globals[internalDebug]} == true ]]; then
 		printMsg "all args: $*"
 	fi
 
@@ -724,7 +766,7 @@ declare debugStateTest=$(getDebug)
 disableDebug
 
 echo Debug should be disabled
-if $(isDebugEnabled); then
+if [[ ${globals[internalDebug]} == true ]]; then
 	echo "  Fail! - Debug is still enabled"
 else
 	echo "  Success - Debug is disabled"
@@ -733,7 +775,7 @@ fi
 setDebug $debugStateTest
 
 echo Debug should be enabled
-if $(isDebugEnabled); then
+if [[ ${globals[internalDebug]} == true ]]; then
 	echo "  Success - Debug is enabled"
 else
 	echo "  Fail! - Debug is still disabled"
@@ -757,15 +799,13 @@ do
 	declare -a cmdOutput
 	cmdOutput[0]='initialize'
 	
-	#echo 1>&2 "return type: $returnTypes[$i]"
 	
-	if [[ $cmdExeEnabled -eq 0 ]]; then
-		#if [[ ${returnTypes[$i]} == 'string' ]]; then
-			#echo 1>&2 calling "string: run ${returnTypes[$i]} 'cmdOutput' ${cmds[$i]} )"
-  			run "${returnTypes[$i]}" cmdOutput "${expectedRC[$i]}" scriptRC "${cmds[$i]}"
-			printDebug "rc called run(): $scriptRC"
-			rc=$scriptRC
-	fi
+	# run() will check if command execution is enabled
+	# if not then all that run() will do is print the command
+  	run "${returnTypes[$i]}" cmdOutput "${expectedRC[$i]}" scriptRC "${cmds[$i]}"
+	printDebug "rc called run(): $scriptRC"
+	rc=$scriptRC
+
 	printDebug "RC: $rc"
 
 	# quotes required as the values may have multiple words

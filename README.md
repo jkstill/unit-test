@@ -200,8 +200,47 @@ $ echo $?
 
 # Dependencies
 
+## ansi-color.sh
+
 This script has a dependency on the script _ansi-color.sh_, which  should be in the same directory as _unit-test.sh_.
 
 _ansi-color.sh is found at [ansi-color](https://github.com/jkstill/ansi-colors)
+
+## Bash 4.3
+
+Due to the use of 'declare -n' in unit-test.sh, Bash 4.3+ is required.
+
+unit-test.sh will not work with Bash 4.2 or earlier.
+
+I have installed bash 4.4 when necessary. 
+
+The following web page has instructions on doing so.  When I have done the Bash 4.4 was installed into /usr/local/bin so as to not overwrite the system Bash.
+
+[Installing Gnu Bash 4.4](https://fossbytes.com/installing-gnu-bash-4-4-linux-distros/)
+
+### Ubuntu
+
+```bash
+apt-get install build-essential
+```
+
+### RedHat
+
+```bash
+yum groupinstall 'Development Tools' 'Legacy Software Development'
+```
+
+Now get the source, build and install
+
+```bash
+wget http://ftp.gnu.org/gnu/bash/bash-4.4.tar.gz
+tar xvfz bash-4.4.tar.gz
+cd bash-4.4
+./configure
+make
+make install
+/usr/local/bin/bash -version
+```
+
 
 

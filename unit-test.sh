@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# built bash 4.4 so this script would work
+
 # unbound variable will cause an error
 # good for catching vars with mis-typed names
 set -u 
@@ -507,10 +509,13 @@ executionSucceeded () {
 		do
 			printDebug "actualVal string $i: " ${actualValArray[$i]}
 			
-			[[ "${actualValArray[$i]}" =~ ^$expectedVal$ ]] && {
+			declare regex=".*$expectedVal.*"
+
+			[[ "${actualValArray[$i]}" =~ $regex  ]] && {
 				retval=$funcSuccessRetval
 				break
 			}
+			printDebug "Failed success check"
 		done
 	
 	else # numeric
@@ -609,7 +614,7 @@ run () {
 		retval='Command Execution Disabled'
 	fi
 
-	printf -v $retVar $retval
+	printf -v $retVar "$retval"
 	printDebug "retVar run(): $retVar"
 }
 
